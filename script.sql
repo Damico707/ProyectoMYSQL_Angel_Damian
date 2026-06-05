@@ -45,8 +45,7 @@ CREATE TABLE clientes (
     contrasena VARCHAR(200) NOT NULL,
     direccion_envio VARCHAR(100),
     fecha_registro TIMESTAMP TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    
-);
+); 
 
 DROP TABLE IF EXISTS ventas;
 CREATE TABLE ventas (
@@ -54,9 +53,11 @@ CREATE TABLE ventas (
     id_cliente INT NOT NULL,
     fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     estado ENUM('pendiente_pago','procesando', 'enviado', 'entregado', 'cancelado'),
-    total DECIMAL(10,2),
+    total DECIMAL(10,2),,
+    id_sucursal int,
     
-    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+    FOREIGN KEY(id_sucursal) REFERENCES sucursal(id_sucursal)
 );
 
 CREATE TABLE detalle_ventas (
@@ -69,6 +70,38 @@ CREATE TABLE detalle_ventas (
     FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
     FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 );
+
+create table sucursal (
+	id_sucursal int auto_increment primary key,
+	nombre varchar(100),
+	codigo varchar(20),
+	direccion varchar(255),
+	telefono varchar(20), 
+	email varchar(100),
+	estado enum('Activa', 'Inactiva', 'Cerrada')
+);
+
+-- encriptacion contraseña insert
+delimiter //
+CREATE TRIGGER tr_hash_contraseña
+BEFORE INSERT  ON clientes
+FOR EACH ROW
+BEGIN
+	SET NEW.contrasena = SHA2(NEW.contrasena,256);
+end // 
+delimiter
+
+-- encriptacion contraseña update
+delimiter //
+CREATE TRIGGER tr_hash_contraseña_update
+BEFORE UPDATE  ON clientes
+FOR EACH ROW
+BEGIN
+	IF NEW.contrasena <> OLD.contrasena THEN
+		SET NEW.contrasena = SHA2(NEW.contrasena,256);
+	END IF;
+end //
+delimiter
 
 -- ===================================
 -- Insercion de datos
@@ -177,37 +210,38 @@ VALUES
 ('In Rainbows','Radiohead',10,5,220000,150000,9,'VIN050',TRUE);
 
 -- VENTAS
-INSERT INTO ventas(id_cliente, estado, total) VALUES
-(1,'entregado',550000),
-(2,'entregado',570000),
-(3,'procesando',375000),
-(4,'enviado',560000),
-(5,'entregado',580000),
-(1,'entregado',550000),
-(6,'cancelado',365000),
-(7,'entregado',560000),
-(8,'entregado',545000),
-(9,'pendiente_pago',230000),
-(10,'entregado',600000),
-(11,'enviado',430000),
-(12,'entregado',545000),
-(13,'procesando',560000),
-(14,'entregado',445000),
-(5,'entregado',550000),
-(2,'entregado',730000),
-(8,'procesando',630000),
-(1,'enviado',565000),
-(3,'entregado',580000),
-(4,'entregado',540000),
-(5,'pendiente_pago',445000),
-(6,'entregado',720000),
-(7,'cancelado',365000),
-(8,'entregado',610000),
-(9,'entregado',430000),
-(10,'procesando',730000),
-(11,'entregado',420000),
-(12,'enviado',530000),
-(1,'entregado',915000);
+INSERT INTO ventas(id_cliente, fecha_venta, estado, total, id_sucursal) VALUES
+(1,'2025-01-03 10:15:22','entregado',1100000,1),
+(2,'2025-01-05 14:32:10','entregado',1300000,2),
+(3,'2025-01-08 09:21:44','procesando',760000,3),
+(4,'2025-01-12 18:05:33','enviado',1130000,4),
+(5,'2025-01-15 11:42:18','entregado',1400000,1),
+(1,'2025-01-20 16:30:45','entregado',1470000,2),
+(6,'2025-02-02 08:50:11','cancelado',880000,3),
+(7,'2025-02-04 13:25:19','entregado',1105000,4),
+(8,'2025-02-08 19:40:27','entregado',1300000,1),
+(9,'2025-02-11 10:12:54','pendiente_pago',850000,2),
+(10,'2025-02-15 15:48:03','entregado',1175000,3),
+(11,'2025-02-20 12:37:26','enviado',1020000,4),
+(12,'2025-03-03 09:10:17','entregado',1260000,1),
+(13,'2025-03-07 17:55:49','procesando',1285000,2),
+(14,'2025-03-11 14:21:08','entregado',895000,3),
+(5,'2025-03-15 11:33:42','entregado',1465000,4),
+(2,'2025-03-18 20:05:11','entregado',1820000,1),
+(8,'2025-03-22 16:17:35','procesando',1270000,2),
+(1,'2025-04-02 10:45:28','enviado',1325000,3),
+(3,'2025-04-06 13:22:51','entregado',1145000,4),
+(4,'2025-04-10 18:36:07','entregado',1075000,1),
+(5,'2025-04-15 09:55:14','pendiente_pago',1090000,2),
+(6,'2025-04-20 15:42:39','entregado',1620000,3),
+(7,'2025-04-24 12:08:26','cancelado',1085000,4),
+(8,'2025-05-04 17:15:42','entregado',1545000,1),
+(9,'2025-05-09 11:29:31','entregado',1075000,2),
+(10,'2025-05-15 14:50:08','procesando',2225000,3),
+(11,'2025-05-21 19:12:55','entregado',1030000,4),
+(12,'2025-05-27 16:44:19','enviado',1070000,1),
+(1,'2025-06-03 20:35:47','entregado',2975000,2);
+
 
 -- DETALLES
 INSERT INTO detalle_ventas
@@ -286,7 +320,39 @@ VALUES
 (30,31,1,185000),
 (30,46,1,180000);
 
-
+INSERT INTO sucursal (nombre, codigo, direccion, telefono, email) VALUES
+(
+    'Medellín',
+    'MED001',
+    'Carrera 43A #1 Sur-150, Medellín',
+    '6045551001',
+    'medellin@vinylstore.com',
+    'Activa'
+),
+(
+    'Bogotá',
+    'BOG001',
+    'Calle 72 #10-34, Bogotá',
+    '6015551002',
+    'bogota@vinylstore.com',
+    'Activa'
+),
+(
+    'Cartagena',
+    'CTG001',
+    'Avenida San Martín #8-50, Cartagena',
+    '6055551003',
+    'cartagena@vinylstore.com',
+    'Activa'
+),
+(
+    'Bucaramanga',
+    'BGA001',
+    'Carrera 27 #36-14, Bucaramanga',
+    '6075551004',
+    'bucaramanga@vinylstore.com',
+    'Activa'
+);
 -- ====================================================
 -- Consultas avanzadas
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
@@ -344,6 +410,85 @@ SELECT c.nombre,YEAR(c.fecha_registro ) as anio, QUARTER(c.fecha_registro) as tr
 FROM clientes c
 ORDER BY anio ASC
 
+-- 6: Tasa de Compra Repetida: Determinar qué porcentaje de clientes ha realizado más de una compra.
+
+select round((
+	( select COUNT(*) 
+	  FROM (
+			select v.id_cliente
+			from ventas v
+			WHERE estado = 'entregado'
+			GROUP BY id_cliente
+			HAVING COUNT(*) > 1  
+		) AS total_compras
+	) 
+/
+	( 
+	select count(distinct v.id_cliente)
+	from ventas v
+	where estado = 'entregado'
+	)
+),2) * 100 as tasa_compra_repetida;
+
+-- 7: Productos Comprados Juntos Frecuentemente: Identificar pares de productos que a menudo se compran en la misma transacción.
+SELECT 
+    p1.nombre AS producto_1,
+    p2.nombre AS producto_2,
+    COUNT(*) AS veces_juntos
+FROM detalle_ventas dv1
+JOIN detalle_ventas dv2 
+ON dv1.id_venta = dv2.id_venta        -- misma venta
+AND dv1.id_producto < dv2.id_producto  -- evita duplicados como (A,B) y (B,A)
+JOIN productos p1 ON dv1.id_producto = p1.id_producto
+JOIN productos p2 ON dv2.id_producto = p2.id_producto
+GROUP BY p1.nombre, p2.nombre
+HAVING COUNT(*) >= 2                       -- solo pares que se repiten
+ORDER BY veces_juntos DESC;
+
+-- 8: Rotación de Inventario: Calcular la tasa de rotación de stock para cada categoría de producto.
+SELECT 
+    c.nombre AS categoria,
+    SUM(dv.cantidad) AS total_vendido,
+    SUM(p.stock) AS stock_actual,
+    ROUND(SUM(dv.cantidad) / NULLIF(SUM(p.stock), 0), 2) AS tasa_rotacion
+FROM categorias c
+JOIN productos p ON p.categoria = c.id_categoria
+JOIN detalle_ventas dv ON dv.id_producto = p.id_producto
+GROUP BY c.nombre
+ORDER BY tasa_rotacion DESC;
+
+-- 9: Productos que Necesitan Reabastecimiento: Listar productos cuyo stock actual está por debajo de su umbral mínimo.
+SELECT 
+    p.nombre AS producto,
+    p.sku,
+    c.nombre AS categoria,
+    p.stock AS stock_actual,
+    8 AS stock_minimo,                    -- stock fijo
+    (8 - p.stock) AS unidades_faltantes
+FROM productos p
+JOIN categorias c ON p.categoria = c.id_categoria
+WHERE p.stock < 8
+  AND p.activo = TRUE
+ORDER BY p.stock ASC;                     -- los más críticos primero
+
+-- 10: Análisis de Carrito Abandonado (Simulado): Identificar clientes que agregaron productos pero no completaron una venta en un período determinado.
+SELECT 
+    CONCAT(cl.nombre, ' ', cl.apellido) AS cliente,
+    cl.email,
+    v.estado,
+    v.fecha_venta,
+    p.nombre AS producto_no_comprado,
+    dv.cantidad,
+    dv.precio_unitario_congelado
+FROM ventas v
+JOIN clientes cl ON v.id_cliente = cl.id_cliente
+JOIN detalle_ventas dv ON v.id_venta = dv.id_venta
+JOIN productos p ON dv.id_producto = p.id_producto
+WHERE v.estado IN ('pendiente_pago', 'cancelado')
+  -- ventas del último mes, ajusta la fecha según necesites
+  AND v.fecha_venta >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+ORDER BY cl.nombre, v.fecha_venta;
+
 -- 11. Clasificar a los proveedores segun que tanto se venden sus productos
 
 SELECT p.proveedor, p.nombre AS producto, SUM(dv.cantidad ) AS cantidadVendida
@@ -386,6 +531,131 @@ GROUP BY c.id_cliente;
 -- TIMESTAMPDIFF  (determinar el intervalo de tiempo entre dos fechas en una unidad de medida específica, lo que la hace ideal para 
 -- cálculos de edad, mediciones de duración y cualquier análisis temporal.)
 
+-- 16: Margen de Beneficio por Producto: Calcular el margen de beneficio para cada producto (requiere añadir un campo costo a la tabla productos).
+SELECT
+    p.nombre AS producto,
+    c.nombre AS categoria,
+    p.precio,
+    p.costo,
+    (p.precio - p.costo) AS ganancia_por_unidad,
+    ROUND(((p.precio - p.costo) / p.precio) * 100, 2) AS margen_porcentaje
+FROM productos p
+JOIN categorias c ON p.categoria = c.id_categoria
+WHERE p.activo = TRUE
+ORDER BY margen_porcentaje DESC;
+
+
+-- 17: Tiempo Promedio Entre Compras: Calcular el tiempo medio que tarda un cliente en volver a comprar.
+SELECT
+    CONCAT(cl.nombre, ' ', cl.apellido) AS cliente,
+    COUNT(v.id_venta) AS total_compras,
+    ROUND(AVG(dias_entre_compras), 0) AS promedio_dias_entre_compras
+FROM clientes cl
+JOIN (
+    SELECT
+        id_cliente,
+        fecha_venta,
+        id_venta,
+        DATEDIFF(
+            fecha_venta,
+            LAG(fecha_venta) OVER (PARTITION BY id_cliente ORDER BY fecha_venta)
+        ) AS dias_entre_compras
+    FROM ventas v
+    WHERE estado NOT IN ('cancelado', 'pendiente_pago')
+) v ON cl.id_cliente = v.id_cliente
+GROUP BY cl.id_cliente, cl.nombre, cl.apellido
+HAVING COUNT(v.id_venta) >= 2  
+ORDER BY promedio_dias_entre_compras ASC;
+
+-- 18: Productos Más Vistos vs. Comprados: Comparar los productos más visitados con los más comprados.
+SELECT
+    ROW_NUMBER() OVER (ORDER BY SUM(dv.cantidad) DESC) AS puesto,
+    p.nombre AS producto,
+    c.nombre AS categoria,
+    SUM(dv.cantidad) AS unidades_vendidas,
+    COUNT(DISTINCT dv.id_venta) AS aparece_en_ventas,
+    p.precio,
+    p.stock AS stock_actual
+
+FROM detalle_ventas dv
+JOIN productos p ON dv.id_producto = p.id_producto
+JOIN categorias c ON p.categoria = c.id_categoria
+JOIN ventas v ON dv.id_venta = v.id_venta
+
+-- no contar ventas canceladas o sin pagar
+WHERE v.estado NOT IN ('cancelado', 'pendiente_pago')
+
+GROUP BY p.id_producto, p.nombre, c.nombre, p.precio, p.stock
+ORDER BY unidades_vendidas DESC;
+
+-- 19: Segmentación de Clientes (RFM): Clasificar a los clientes en segmentos (Recencia, Frecuencia, Monetario).
+WITH rfm_base AS (
+    SELECT
+        cl.id_cliente,
+        CONCAT(cl.nombre, ' ', cl.apellido) AS cliente,
+        DATEDIFF(NOW(), MAX(v.fecha_venta)) AS recencia,
+        COUNT(v.id_venta) AS frecuencia,
+        SUM(v.total) AS monetario
+    FROM clientes cl
+    JOIN ventas v ON cl.id_cliente = v.id_cliente
+    WHERE v.estado NOT IN ('cancelado', 'pendiente_pago')
+    GROUP BY cl.id_cliente, cl.nombre, cl.apellido
+),
+rfm_scores AS (
+    SELECT *,
+        CASE
+            WHEN recencia <= 30  THEN 3
+            WHEN recencia <= 90  THEN 2
+            ELSE 1
+        END AS score_r,
+        CASE
+            WHEN frecuencia >= 3 THEN 3
+            WHEN frecuencia = 2  THEN 2
+            ELSE 1
+        END AS score_f,
+        CASE
+            WHEN monetario >= 1500000 THEN 3
+            WHEN monetario >= 800000  THEN 2
+            ELSE 1
+        END AS score_m
+    FROM rfm_base
+)
+SELECT
+    cliente,
+    recencia,
+    frecuencia,
+    monetario,
+    (score_r + score_f + score_m) AS rfm_total,
+    CASE
+        WHEN (score_r + score_f + score_m) >= 8 THEN 'Cliente VIP'
+        WHEN (score_r + score_f + score_m) >= 6 THEN 'Cliente Leal'
+        WHEN (score_r + score_f + score_m) >= 4 THEN 'Cliente Potencial'
+        ELSE 'Cliente en Riesgo'
+    END AS segmento
+FROM rfm_scores
+ORDER BY rfm_total DESC;
+
+-- 20: Predicción de Demanda Simple: Utilizar datos de ventas pasadas para proyectar las ventas del próximo mes para una categoría específica.
+WITH ventas_por_mes AS (
+    SELECT
+        c.nombre AS categoria,
+        DATE_FORMAT(v.fecha_venta, '%Y-%m') AS mes,
+        SUM(dv.cantidad) AS unidades_vendidas
+    FROM detalle_ventas dv
+    JOIN ventas v ON dv.id_venta = v.id_venta
+    JOIN productos p ON dv.id_producto = p.id_producto
+    JOIN categorias c ON p.categoria = c.id_categoria
+    WHERE v.estado NOT IN ('cancelado', 'pendiente_pago')
+    GROUP BY c.nombre, DATE_FORMAT(v.fecha_venta, '%Y-%m')
+)
+SELECT
+    categoria,
+    COUNT(mes) AS meses_con_datos,
+    ROUND(AVG(unidades_vendidas), 0) AS promedio_mensual,
+    ROUND(AVG(unidades_vendidas) * 1.05, 0) AS proyeccion_proximo_mes
+FROM ventas_por_mes
+GROUP BY categoria
+ORDER BY proyeccion_proximo_mes DESC;
 
 
 -- ===================================
@@ -393,11 +663,333 @@ GROUP BY c.id_cliente;
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
 
+-- 6: fn_EsClienteNuevo: Devuelve VERDADERO si un cliente realizó su primera compra en los últimos 30 días.
+
+drop function if exists fn_EsClientenuevo;
+DELIMITER //
+CREATE FUNCTION fn_EsClienteNuevo(p_id_cliente INT)
+RETURNS BOOLEAN
+DETERMINISTIC
+BEGIN
+    DECLARE fecha_primera_compra DATE;
+    SELECT MIN(DATE(fecha_venta))
+    INTO fecha_primera_compra
+    FROM ventas
+    WHERE id_cliente = p_id_cliente
+      AND estado NOT IN ('cancelado', 'pendiente_pago');
+    IF fecha_primera_compra IS NULL THEN
+        RETURN FALSE;
+    END IF;
+    IF DATEDIFF(NOW(), fecha_primera_compra) <= 30 THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END //
+DELIMITER 
+
+-- prueba
+SELECT 
+    id_cliente,
+    CONCAT(nombre, ' ', apellido) AS cliente,
+ 	fn_EsClienteNuevo(id_cliente) AS es_nuevo
+FROM clientes;
+
+-- 7: fn_CalcularCostoEnvio: Calcula el costo de envío basado en el peso total de los productos de una venta.
+DELIMITER //
+CREATE FUNCTION fn_CalcularCostoEnvio(p_id_venta INT)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE total_unidades INT;
+    DECLARE peso_por_unidad DECIMAL(5,2);
+    DECLARE costo_por_kg DECIMAL(10,2);
+    DECLARE peso_total DECIMAL(10,2);
+    DECLARE costo_envio DECIMAL(10,2);
+    SET peso_por_unidad = 0.3;   
+	SET costo_por_kg   = 5000;   
+    SELECT SUM(cantidad)
+    INTO total_unidades
+    FROM detalle_ventas
+    WHERE id_venta = p_id_venta;
+    IF total_unidades IS NULL THEN
+        RETURN 0;
+    END IF;
+    SET peso_total  = total_unidades * peso_por_unidad;
+    SET costo_envio = peso_total * costo_por_kg;
+    RETURN costo_envio;
+END $$
+DELIMITER ;
+
+-- prueba
+SELECT 
+    id_venta,
+    total,
+    fn_CalcularCostoEnvio(id_venta) AS costo_envio
+FROM ventas
+LIMIT 10;
+
+
+-- 8: fn_AplicarDescuento: Aplica un porcentaje de descuento a un monto dado.
+DELIMITER $$
+CREATE FUNCTION fn_AplicarDescuento(
+    p_monto DECIMAL(10,2),
+    p_descuento DECIMAL(5,2)   -- porcentaje, ejemplo: 15 = 15%
+)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE monto_final DECIMAL(10,2);
+    IF p_descuento < 0 OR p_descuento > 100 THEN
+        RETURN NULL;  
+    END IF;
+    SET monto_final = p_monto - (p_monto * (p_descuento / 100));
+    RETURN monto_final;
+END $$
+DELIMITER ;
+
+-- prueba con 15% de descuento
+SELECT 
+    nombre,
+    precio,
+    fn_AplicarDescuento(precio, 15) AS precio_con_descuento
+FROM productos
+LIMIT 5;
+
+-- 9: fn_ObtenerUltimaFechaCompra: Devuelve la fecha de la última compra de un cliente.
+DELIMITER $$
+CREATE FUNCTION fn_ObtenerUltimaFechaCompra(p_id_cliente INT)
+RETURNS DATETIME
+DETERMINISTIC
+BEGIN
+    DECLARE ultima_fecha DATETIME;
+    SELECT MAX(fecha_venta)
+    INTO ultima_fecha
+    FROM ventas
+    WHERE id_cliente = p_id_cliente
+      AND estado NOT IN ('cancelado', 'pendiente_pago');
+    RETURN ultima_fecha;  -- devuelve NULL si no tiene compras
+END $$
+DELIMITER ;
+
+-- prueba
+SELECT
+    id_cliente,
+    CONCAT(nombre, ' ', apellido) AS cliente,
+    fn_ObtenerUltimaFechaCompra(id_cliente) AS ultima_compra
+FROM clientes;
+
+-- 10: fn_ValidarFormatoEmail: Comprueba si una cadena de texto tiene un formato de correo electrónico válido.
+DELIMITER $$
+CREATE FUNCTION fn_ValidarFormatoEmail(p_email VARCHAR(100))
+RETURNS BOOLEAN
+DETERMINISTIC
+BEGIN
+    IF p_email like '%@%' THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END $$
+DELIMITER ;
+
+-- prueba con varios correos
+SELECT fn_ValidarFormatoEmail('juan@gmail.com')   AS valido;    -- TRUE
+SELECT fn_ValidarFormatoEmail('correosinArroba')  AS invalido;  -- FALSE
+SELECT fn_ValidarFormatoEmail('raro@sin-punto')   AS invalido;  -- FALSE
 
 -- ===================================
 -- Roles y permisos
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
+
+-- rol 6: Crear el rol Auditor_Financiero con acceso de solo lectura a ventas, productos y logs de precios.
+drop role if exists Auditor_Financiero;
+create role if not exists Auditor_Financiero;
+
+grant select 
+on proyectoSQL.ventas 
+to Auditor_Financiero;
+
+grant select 
+on proyectoSQL.productos 
+to Auditor_Financiero;
+
+grant select 
+on proyectoSQL.logs_precios 
+to Auditor_Financiero;
+
+-- rol 7: Crear un usuario admin_user y asignarle el rol de administrador.
+drop role if exists admin_user;
+create role admin_user;
+
+grant all privileges
+on proyectoSQL.*
+to admin_user;
+
+-- rol 8: Crear un usuario marketing_user y asignarle el rol de marketing. 
+drop role if exists marketing_user;
+create role marketing_user;
+
+grant select
+on proyectoSQL.productos
+to marketing_user;
+
+grant select
+on proyectoSQL.categorias
+to marketing_user;
+
+grant select
+on proyectoSQL.ventas
+to marketing_user;
+
+grant select
+on proyectoSQL.detalle_ventas
+to marketing_user;
+
+grant select
+on proyectoSQL.clientes
+to marketing_user;
+
+-- rol 9: Crear un usuario inventory_user y asignarle el rol de inventario.
+drop role if exists inventory_user;
+create role inventory_user;
+
+grant select 
+on proyectoSQL.productos
+to inventory_user;
+
+grant update  
+on proyectoSQL.productos
+to inventory_user;
+
+grant insert
+on proyectoSQL.productos
+to inventory_user;
+
+grant select 
+on proyectoSQL.categorias
+to inventory_user;
+
+grant select 
+on proyectoSQL.proveedores
+to inventory_user;
+
+-- rol 10: Crear un usuario support_user y asignarle el rol de atención al cliente.
+drop role if exists support_user;
+create role support_user;
+
+grant select 
+on proyectoSQL.clientes
+to support_user;
+
+grant select 
+on proyectoSQL.ventas
+to support_user;
+
+grant select 
+on proyectoSQL.detalle_ventas
+to support_user;
+
+grant select 
+on proyectoSQL.productos
+to support_user;
+
+-- rol 16: Asegurar que el usuario root no pueda ser usado desde conexiones remotas.
+SELECT user, host
+FROM mysql.user
+WHERE user = 'root';
+-- el usuario 'root' ya se encuentra en localhost
+
+-- rol 17: Crear un rol Visitante que solo pueda ver la tabla productos.
+drop role if exists guest;
+create role guest;
+
+grant select 
+on proyectoSQL.productos
+to guest;
+
+drop user if exists 'visitante'@'localhost';
+
+create user 'visitante'@'localhost'
+identified by 'visitorfrog';
+
+grant guest 
+to 'visitante'@'localhost';
+set default role guest
+to 'visitante'@'localhost';
+
+-- rol 18: 
+drop role if exists analista_datos; 
+create role analista_datos;
+
+grant select
+on proyectoSQL.*
+to analista_datos;
+
+drop user if exists 'ana_alista_datos'@'localhost';
+create user 'ana_alista_datos'@'localhost'
+identified by 'anaestalista';
+
+alter user 'ana_alista_datos'@'localhost'
+with max_queries_per_hour 500;
+
+
+-- rol 19: Asegurar que los usuarios solo puedan ver las ventas de la sucursal a la que pertenecen (requiere añadir id_sucursal).
+create view vw_ventas_medellin AS 
+select *
+from ventas v
+where id_sucursal = 1;
+
+create view vw_ventas_bogota AS 
+select *
+from ventas v
+where id_sucursal = 2;
+
+create view vw_ventas_cartagena AS 
+select *
+from ventas v
+where id_sucursal = 3;
+
+create view vw_ventas_bucaramanga AS 
+select *
+from ventas v
+where id_sucursal = 4;
+
+drop user if exists 'ventas_bogota'@'localhost';
+create user 'ventas_bogota'@'localhost'
+identified by 'ventasbogota2026';
+
+drop user if exists 'ventas_medellin'@'localhost';
+create user 'ventas_medellin'@'localhost'
+identified by 'ventasmedellin2026';
+
+drop user if exists 'ventas_bga'@'localhost';
+create user 'ventas_bga'@'localhost'
+identified by 'ventasbga2026';
+
+drop user if exists 'ventas_cartagena'@'localhost';
+create user 'ventas_cartagena'@'localhost'
+identified by 'ventascartagena2026';
+
+grant update, insert 
+on proyectoSQL.ventas
+to 'ventas_bogota'@'localhost';
+
+grant update, insert 
+on proyectoSQL.ventas
+to 'ventas_medellin'@'localhost';
+
+grant update, insert 
+on proyectoSQL.ventas
+to 'ventas_bga'@'localhost';
+
+grant update, insert 
+on proyectoSQL.ventas
+to 'ventas_cartagena'@'localhost';
+
+
+
 
 -- ===================================
 -- Triggers 
