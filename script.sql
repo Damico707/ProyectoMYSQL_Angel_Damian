@@ -20,6 +20,27 @@ CREATE TABLE proveedores(
 	telefono VARCHAR(15)
 );
 
+create table sucursal (
+	id_sucursal int auto_increment primary key,
+	nombre varchar(100),
+	codigo varchar(20),
+	direccion varchar(255),
+	telefono varchar(20), 
+	email varchar(100),
+	estado enum('Activa', 'Inactiva', 'Cerrada')
+);
+
+CREATE TABLE clientes (
+    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
+    nombre varchar(50),
+    apellido VARCHAR(70),
+    email VARCHAR(100),
+    contrasena VARCHAR(200) NOT NULL,
+    direccion_envio VARCHAR(100),
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+); 
+
+
 CREATE TABLE productos(
 	id_producto INT AUTO_INCREMENT PRIMARY KEY,
 	nombre VARCHAR(100) NOT NULL,
@@ -37,25 +58,14 @@ CREATE TABLE productos(
 	FOREIGN KEY(proveedor) REFERENCES proveedores(id_proveedor)
 );
 
-CREATE TABLE clientes (
-    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
-    nombre varchar(50),
-    apellido VARCHAR(70),
-    email VARCHAR(100),
-    contrasena VARCHAR(200) NOT NULL,
-    direccion_envio VARCHAR(100),
-    fecha_registro TIMESTAMP TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-); 
-
 DROP TABLE IF EXISTS ventas;
 CREATE TABLE ventas (
     id_venta INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente INT NOT NULL,
     fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     estado ENUM('pendiente_pago','procesando', 'enviado', 'entregado', 'cancelado'),
-    total DECIMAL(10,2),,
+    total DECIMAL(10,2),
     id_sucursal int,
-    
     FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
     FOREIGN KEY(id_sucursal) REFERENCES sucursal(id_sucursal)
 );
@@ -66,20 +76,10 @@ CREATE TABLE detalle_ventas (
     id_producto INT NOT NULL,
     cantidad INT NOT NULL CHECK (cantidad > 0),
     precio_unitario_congelado DECIMAL(10,2) NOT NULL,
-    
     FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
     FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 );
 
-create table sucursal (
-	id_sucursal int auto_increment primary key,
-	nombre varchar(100),
-	codigo varchar(20),
-	direccion varchar(255),
-	telefono varchar(20), 
-	email varchar(100),
-	estado enum('Activa', 'Inactiva', 'Cerrada')
-);
 
 -- encriptacion contraseña insert
 delimiter //
@@ -127,6 +127,37 @@ INSERT INTO proveedores(nombre,email_contcto,telefono) VALUES
 ('Retro Discos','info@retrodiscos.com','3003333333'),
 ('Golden Vinyl','ventas@goldenvinyl.com','3004444444'),
 ('Classic Sounds','contacto@classicsounds.com','3005555555');
+
+-- SUCURSAL
+INSERT INTO sucursal (nombre, codigo, direccion, telefono, email) VALUES
+(
+    'Medellín',
+    'MED001',
+    'Carrera 43A #1 Sur-150, Medellín',
+    '6045551001',
+    'medellin@vinylstore.com'
+),
+(
+    'Bogotá',
+    'BOG001',
+    'Calle 72 #10-34, Bogotá',
+    '6015551002',
+    'bogota@vinylstore.com'
+),
+(
+    'Cartagena',
+    'CTG001',
+    'Avenida San Martín #8-50, Cartagena',
+    '6055551003',
+    'cartagena@vinylstore.com'
+),
+(
+    'Bucaramanga',
+    'BGA001',
+    'Carrera 27 #36-14, Bucaramanga',
+    '6075551004',
+    'bucaramanga@vinylstore.com'
+);
 
 -- CLIENTES
 INSERT INTO clientes(nombre,apellido,email,contrasena,direccion_envio) VALUES
@@ -320,39 +351,7 @@ VALUES
 (30,31,1,185000),
 (30,46,1,180000);
 
-INSERT INTO sucursal (nombre, codigo, direccion, telefono, email) VALUES
-(
-    'Medellín',
-    'MED001',
-    'Carrera 43A #1 Sur-150, Medellín',
-    '6045551001',
-    'medellin@vinylstore.com',
-    'Activa'
-),
-(
-    'Bogotá',
-    'BOG001',
-    'Calle 72 #10-34, Bogotá',
-    '6015551002',
-    'bogota@vinylstore.com',
-    'Activa'
-),
-(
-    'Cartagena',
-    'CTG001',
-    'Avenida San Martín #8-50, Cartagena',
-    '6055551003',
-    'cartagena@vinylstore.com',
-    'Activa'
-),
-(
-    'Bucaramanga',
-    'BGA001',
-    'Carrera 27 #36-14, Bucaramanga',
-    '6075551004',
-    'bucaramanga@vinylstore.com',
-    'Activa'
-);
+
 -- ====================================================
 -- Consultas avanzadas
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
