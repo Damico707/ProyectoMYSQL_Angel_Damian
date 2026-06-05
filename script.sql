@@ -292,6 +292,99 @@ VALUES
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
 
+-- 1. Top 10 productos mas vendidos
+
+SELECT productos.nombre, detalle_ventas.id_producto, SUM(detalle_ventas.cantidad) AS cantidad_vendida
+FROM productos	
+JOIN detalle_ventas ON detalle_ventas.id_producto = productos.id_producto   -- Falta excluir a los cancelados supongo (?)
+GROUP BY productos.nombre, detalle_ventas.id_producto 
+ORDER BY cantidad_vendida DESC
+LIMIT 10;
+
+
+-- 2. productos con bajas ventas ( 50 productos x 0.10 = 5) 5 productos menos vendidos 
+
+SELECT productos.nombre, SUM(detalle_ventas.cantidad) AS cantidad_vendida, SUM(productos.precio * detalle_ventas.cantidad)
+FROM productos	
+JOIN detalle_ventas ON detalle_ventas.id_producto = productos.id_producto   -- Falta excluir a los cancelados supongo (?)
+GROUP BY productos.nombre
+ORDER BY cantidad_vendida ASC
+
+-- no le puse el limitante de 5 productos ya que observando la tabla se puede percatar que hay mas de 5 en el rango de menos porcentaje de ventas
+-- especificamente 10
+
+
+-- 3. Clientes VIP, su gasto total historico (5)
+
+SELECT c.nombre, SUM(dv.cantidad) as total_comprados
+FROM ventas v
+JOIN clientes c ON c.id_cliente = v.id_cliente 
+JOIN detalle_ventas dv ON dv.id_venta = v.id_venta 
+GROUP BY c.nombre
+ORDER BY total_comprados DESC
+LIMIT 5;
+
+-- 4. Analisis de ventas mensuales (meses y año)
+
+SELECT v.id_venta,p.nombre, dv.precio_unitario_congelado, MONTH(v.fecha_venta) AS mes
+FROM detalle_ventas dv 
+JOIN productos p ON p.id_producto = dv.id_producto 
+JOIN ventas v ON v.id_venta = dv.id_venta 
+GROUP BY  v.id_venta, dv.id_venta, p.nombre, dv.precio_unitario_congelado
+
+SELECT v.id_venta,p.nombre, dv.precio_unitario_congelado, YEAR(v.fecha_venta) AS mes
+FROM detalle_ventas dv 
+JOIN productos p ON p.id_producto = dv.id_producto 
+JOIN ventas v ON v.id_venta = dv.id_venta 
+GROUP BY YEAR(v.fecha_venta ), v.id_venta, dv.id_venta, p.nombre, dv.precio_unitario_congelado
+
+-- 5. Calcular el numero de nuevos clientes registrados por trimestre
+
+SELECT c.nombre,YEAR(c.fecha_registro ) as anio, QUARTER(c.fecha_registro) as trimestre
+FROM clientes c
+ORDER BY anio ASC
+
+-- 11. Clasificar a los proveedores segun que tanto se venden sus productos
+
+SELECT p.proveedor, p.nombre AS producto, SUM(dv.cantidad ) AS cantidadVendida
+FROM productos p 
+JOIN detalle_ventas dv ON dv.id_producto = p.id_producto 
+GROUP BY p.proveedor, p.nombre 
+ORDER BY cantidadVendida  DESC
+
+-- 12. Agrupar las ventas por ciudad o region del cliente
+
+SELECT v.id_venta, c.nombre, c.direccion_envio 
+FROM ventas v 
+JOIN clientes c ON c.id_cliente = v.id_cliente 
+
+-- 13. Determinar las horas pico de compras 
+
+SELECT HOUR(fecha_venta ), COUNT(*) AS repetidas
+FROM ventas v 
+GROUP BY HOUR(fecha_venta)
+ORDER BY repetidas DESC
+
+-- 14. Comparar las ventas de un producto antes y despues de una campaña de descuento
+
+-- ???? Nose aun a que se refiere con campaña de descuento
+
+-- 15. Retencion de cliente mes a mes desde su primera compra
+
+SELECT c.nombre, MIN(DATE(v.fecha_venta)) AS primera_compra,
+CASE
+	WHEN MIN(DATE(v.fecha_venta)) = MAX(DATE(v.fecha_venta))
+	THEN 'no tiene ultima compra'
+ 	ELSE CONCAT(TIMESTAMPDIFF(MONTH, MIN(DATE(v.fecha_venta)), MAX(DATE(v.fecha_venta))),' meses despues')
+END AS meses_despues_de_la_ultima_compra
+FROM ventas v
+JOIN clientes c ON c.id_cliente = v.id_cliente 
+WHERE estado <> 'cancelado'
+GROUP BY c.id_cliente;
+
+
+-- TIMESTAMPDIFF  (determinar el intervalo de tiempo entre dos fechas en una unidad de medida específica, lo que la hace ideal para 
+-- cálculos de edad, mediciones de duración y cualquier análisis temporal.)
 
 
 
