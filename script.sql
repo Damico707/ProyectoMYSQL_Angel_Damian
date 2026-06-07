@@ -1,4 +1,5 @@
 drop database if exists proyectoSQL;
+
 create database proyectoSQL;
 use proyectoSQL;
 
@@ -20,50 +21,107 @@ CREATE TABLE proveedores(
 	telefono VARCHAR(15)
 );
 
-create table sucursal (
-	id_sucursal int auto_increment primary key,
-	nombre varchar(100),
-	codigo varchar(20),
-	direccion varchar(255),
-	telefono varchar(20), 
-	email varchar(100),
-	estado enum('Activa', 'Inactiva', 'Cerrada')
+
+CREATE TABLE productos(
+	id_producto INT AUTO_INCREMENT PRIMARY KEY,
+	nombre VARCHAR(100) NOT NULL,
+	descripcion VARCHAR(255),
+	categoria INT,
+	proveedor INT,
+	precio DECIMAL(10,2) NOT NULL,
+	costo DECIMAL(10,2) NOT NULL,
+	stock INT DEFAULT 0 NOT NULL,
+	sku VARCHAR(20) UNIQUE NOT NULL,
+	fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	activo BOOLEAN NOT NULL DEFAULT FALSE,
+	
+	FOREIGN KEY(categoria) REFERENCES categorias(id_categoria),
+	FOREIGN KEY(proveedor) REFERENCES proveedores(id_proveedor)
 );
+
 
 CREATE TABLE clientes (
     id_cliente INT AUTO_INCREMENT PRIMARY KEY,
     nombre varchar(50),
     apellido VARCHAR(70),
     email VARCHAR(100),
+    fecha_nacimiento DATE,
     contrasena VARCHAR(200) NOT NULL,
     direccion_envio VARCHAR(100),
-    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    total_gastado decimal(10,2)
-); 
-
-CREATE TABLE intentos_login (
-    id_intento INT AUTO_INCREMENT PRIMARY KEY,
-    usuario VARCHAR(100),
-    ip varchar(50),
-    fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    exitoso enum('exitoso', 'fallido')
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    
 );
 
-CREATE TABLE logs_permisos (
-    id_log INT AUTO_INCREMENT PRIMARY KEY,
-    usuario VARCHAR(100),
-    permiso VARCHAR(100),
-    accion ENUM('GRANT','REVOKE'),
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+create table sucursal (
+    id_sucursal int auto_increment primary key,
+    nombre varchar(100),
+    codigo varchar(20),
+    direccion varchar(255),
+    telefono varchar(20), 
+    email varchar(100),
+    estado enum('Activa', 'Inactiva', 'Cerrada')
 );
 
-CREATE TABLE cambios_permisos (
-    id_cambio INT AUTO_INCREMENT PRIMARY KEY,
-    usuario VARCHAR(100),
-    permiso VARCHAR(100),
-    accion ENUM('GRANT','REVOKE'),
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE ventas (
+    id_venta INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    estado ENUM('pendiente_pago','procesando', 'enviado', 'entregado', 'cancelado'),
+    total DECIMAL(10,2),
+    id_sucursal int,
+
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+    FOREIGN KEY(id_sucursal) REFERENCES sucursal(id_sucursal)
 );
+
+CREATE TABLE detalle_ventas (
+    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT NOT NULL,
+    id_producto INT NOT NULL,
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_unitario_congelado DECIMAL(10,2) NOT NULL,
+    
+    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+);
+
+CREATE TABLE logs_cambios_precio (
+	id INT AUTO_INCREMENT PRIMARY KEY,
+	id_producto INT NOT NULL,
+	precio_anterior DECIMAL(10,2),
+	precio_nuevo DECIMAL(10,2),
+	fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ CREATE TABLE auditoria_clientes(
+ 		id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ 		id_cliente INT NOT NULL,
+ 		mensaje VARCHAR(100)
+ );
+
+ CREATE TABLE auditoria_estado_pedido(
+ 	id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ 	id_venta INT NOT NULL,
+ 	estado_anterior VARCHAR(100),
+ 	estado_actual VARCHAR(100)
+ );
+ 
+	CREATE TABLE alertas_stock (
+		id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+		id_producto INT NOT NULL,
+		stockACT INT,
+		fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	
+	CREATE TABLE ventas_eliminadas(
+		id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+		id_venta INT NOT NULL,
+		id_cliente INT NOT NULL,
+		estado VARCHAR(100),
+		total DECIMAL(10,2),
+		fecha_eliminacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
 
 create table lista_reabastecimiento(
 	id_producto int,
@@ -113,46 +171,6 @@ create table reporte_proveedores(
 	pediddos_participados int,
 	fecha_reporte date
 );
-
-CREATE TABLE productos(
-	id_producto INT AUTO_INCREMENT PRIMARY KEY,
-	nombre VARCHAR(100) NOT NULL,
-	descripcion VARCHAR(255),
-	categoria INT,
-	proveedor INT,
-	precio DECIMAL(10,2) NOT NULL,
-	costo DECIMAL(10,2) NOT NULL,
-	stock INT DEFAULT 0 NOT NULL,
-	sku VARCHAR(20) UNIQUE NOT NULL,
-	fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-	activo BOOLEAN NOT NULL DEFAULT FALSE,
-	
-	FOREIGN KEY(categoria) REFERENCES categorias(id_categoria),
-	FOREIGN KEY(proveedor) REFERENCES proveedores(id_proveedor)
-);
-
-DROP TABLE IF EXISTS ventas;
-CREATE TABLE ventas (
-    id_venta INT AUTO_INCREMENT PRIMARY KEY,
-    id_cliente INT NOT NULL,
-    fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    estado ENUM('pendiente_pago','procesando', 'enviado', 'entregado', 'cancelado'),
-    total DECIMAL(10,2),
-    id_sucursal int,
-    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
-    FOREIGN KEY(id_sucursal) REFERENCES sucursal(id_sucursal)
-);
-
-CREATE TABLE detalle_ventas (
-    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
-    id_venta INT NOT NULL,
-    id_producto INT NOT NULL,
-    cantidad INT NOT NULL CHECK (cantidad > 0),
-    precio_unitario_congelado DECIMAL(10,2) NOT NULL,
-    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
-    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
-);
-
 -- ==========================
 -- ÍNDICES
 -- ==========================
@@ -176,7 +194,6 @@ ON detalle_ventas(id_venta);
 -- ==========================
 -- ENCRIPTACIONES CONTRASEÑAS
 -- ==========================
-
 -- encriptacion contraseña insert
 delimiter //
 CREATE TRIGGER tr_hash_contraseña
@@ -198,7 +215,6 @@ BEGIN
 	END IF;
 end //
 delimiter
-
 
 -- ===================================
 -- Insercion de datos
@@ -224,6 +240,80 @@ INSERT INTO proveedores(nombre,email_contcto,telefono) VALUES
 ('Retro Discos','info@retrodiscos.com','3003333333'),
 ('Golden Vinyl','ventas@goldenvinyl.com','3004444444'),
 ('Classic Sounds','contacto@classicsounds.com','3005555555');
+
+-- CLIENTES
+INSERT INTO clientes
+(nombre,apellido,email,fecha_nacimiento,contrasena,direccion_envio,fecha_registro)
+VALUES
+('Juan','Perez','juan@gmail.com','1985-07-12','123456','Bogotá','2022-03-15 10:25:30'),
+('Maria','Gomez','maria@gmail.com','1990-11-25','123456','Medellín','2022-07-21 14:12:45'),
+('Carlos','Lopez','carlos@gmail.com','1988-04-18','123456','Cali','2022-11-05 09:40:10'),
+('Ana','Martinez','ana@gmail.com','1995-09-30','123456','Barranquilla','2023-01-18 16:20:55'),
+('Pedro','Ramirez','pedro@gmail.com','1982-01-15','123456','Bucaramanga','2023-04-09 11:15:22'),
+('Laura','Rodriguez','laura@gmail.com','1993-06-22','123456','Cartagena','2023-06-27 18:05:41'),
+('Andres','Torres','andres@gmail.com','1987-12-08','123456','Pereira','2023-09-12 08:33:17'),
+('Sofia','Diaz','sofia@gmail.com','1998-03-14','123456','Manizales','2024-02-14 13:22:36'),
+('Daniel','Castro','daniel@gmail.com','1991-08-27','123456','Tunja','2024-05-30 15:48:12'),
+('Valentina','Moreno','valentina@gmail.com','1999-05-05','123456','Cúcuta','2024-08-07 10:17:29'),
+('Miguel','Rojas','miguel@gmail.com','1984-10-19','123456','Ibagué','2024-10-25 19:02:44'),
+('Camila','Vargas','camila@gmail.com','1997-02-11','123456','Neiva','2025-01-11 12:45:38'),
+('Jorge','Suarez','jorge@gmail.com','1980-09-03','123456','Montería','2025-03-22 17:28:51'),
+('Paula','Herrera','paula@gmail.com','1996-12-17','123456','Santa Marta','2025-06-08 09:14:27');
+
+-- PRODUCTOS
+INSERT INTO productos
+(nombre,descripcion,categoria,proveedor,precio,costo,stock,sku,activo)
+VALUES
+('The Dark Side of the Moon','Pink Floyd',1,1,180000,120000,15,'VIN001',TRUE),
+('The Wall','Pink Floyd',1,1,190000,125000,10,'VIN002',TRUE),
+('Led Zeppelin IV','Led Zeppelin',1,2,175000,115000,12,'VIN003',TRUE),
+('Back in Black','AC/DC',1,2,170000,110000,18,'VIN004',TRUE),
+('Hotel California','Eagles',1,3,165000,105000,14,'VIN005',TRUE),
+('Thriller','Michael Jackson',2,1,185000,125000,20,'VIN006',TRUE),
+('Bad','Michael Jackson',2,1,180000,120000,15,'VIN007',TRUE),
+('1989','Taylor Swift',2,2,200000,135000,12,'VIN008',TRUE),
+('Future Nostalgia','Dua Lipa',2,2,190000,130000,10,'VIN009',TRUE),
+('Teenage Dream','Katy Perry',2,3,170000,110000,8,'VIN010',TRUE),
+('Kind of Blue','Miles Davis',3,3,210000,145000,7,'VIN011',TRUE),
+('Blue Train','John Coltrane',3,3,220000,150000,5,'VIN012',TRUE),
+('Time Out','Dave Brubeck',3,4,205000,140000,6,'VIN013',TRUE),
+('A Love Supreme','John Coltrane',3,4,215000,145000,8,'VIN014',TRUE),
+('Head Hunters','Herbie Hancock',3,5,210000,145000,6,'VIN015',TRUE),
+('Master of Puppets','Metallica',4,1,195000,130000,10,'VIN016',TRUE),
+('Ride the Lightning','Metallica',4,1,190000,125000,8,'VIN017',TRUE),
+('Paranoid','Black Sabbath',4,2,180000,120000,12,'VIN018',TRUE),
+('Painkiller','Judas Priest',4,2,185000,122000,7,'VIN019',TRUE),
+('Rust in Peace','Megadeth',4,3,190000,125000,9,'VIN020',TRUE),
+('Illmatic','Nas',5,3,175000,115000,11,'VIN021',TRUE),
+('The Marshall Mathers LP','Eminem',5,4,185000,125000,10,'VIN022',TRUE),
+('The Chronic','Dr. Dre',5,4,180000,120000,9,'VIN023',TRUE),
+('Ready to Die','Notorious B.I.G.',5,5,175000,118000,8,'VIN024',TRUE),
+('To Pimp a Butterfly','Kendrick Lamar',5,5,210000,145000,12,'VIN025',TRUE),
+('Discovery','Daft Punk',6,1,220000,150000,10,'VIN026',TRUE),
+('Random Access Memories','Daft Punk',6,1,225000,155000,9,'VIN027',TRUE),
+('Play','Moby',6,2,180000,120000,8,'VIN028',TRUE),
+('Immunity','Jon Hopkins',6,2,190000,125000,7,'VIN029',TRUE),
+('Music for the Jilted Generation','Prodigy',6,3,200000,135000,6,'VIN030',TRUE),
+('Legend','Bob Marley',7,3,185000,125000,20,'VIN031',TRUE),
+('Exodus','Bob Marley',7,4,180000,120000,14,'VIN032',TRUE),
+('Catch a Fire','Bob Marley',7,4,175000,115000,12,'VIN033',TRUE),
+('Marcus Garvey','Burning Spear',7,5,170000,110000,8,'VIN034',TRUE),
+('Equal Rights','Peter Tosh',7,5,165000,105000,10,'VIN035',TRUE),
+('Siembra','Willie Colon & Ruben Blades',8,1,190000,130000,10,'VIN036',TRUE),
+('Lo Mato','Willie Colon',8,2,175000,115000,8,'VIN037',TRUE),
+('Celia y Johnny','Celia Cruz',8,2,180000,120000,12,'VIN038',TRUE),
+('Comedia','Hector Lavoe',8,3,170000,110000,10,'VIN039',TRUE),
+('Asalto Navideño','Hector Lavoe',8,3,175000,115000,8,'VIN040',TRUE),
+('Las Cuatro Estaciones','Vivaldi',9,4,230000,160000,5,'VIN041',TRUE),
+('Requiem','Mozart',9,4,220000,150000,6,'VIN042',TRUE),
+('Sinfonía No. 5','Beethoven',9,5,225000,155000,5,'VIN043',TRUE),
+('El Lago de los Cisnes','Tchaikovsky',9,5,210000,145000,4,'VIN044',TRUE),
+('Canon in D','Pachelbel',9,5,200000,135000,7,'VIN045',TRUE),
+('AM','Arctic Monkeys',10,1,180000,120000,14,'VIN046',TRUE),
+('Currents','Tame Impala',10,2,210000,145000,12,'VIN047',TRUE),
+('Is This It','The Strokes',10,3,190000,130000,10,'VIN048',TRUE),
+('Funeral','Arcade Fire',10,4,195000,130000,8,'VIN049',TRUE),
+('In Rainbows','Radiohead',10,5,220000,150000,9,'VIN050',TRUE);
 
 -- SUCURSAL
 INSERT INTO sucursal (nombre, codigo, direccion, telefono, email) VALUES
@@ -255,107 +345,6 @@ INSERT INTO sucursal (nombre, codigo, direccion, telefono, email) VALUES
     '6075551004',
     'bucaramanga@vinylstore.com'
 );
-
--- CLIENTES
-INSERT INTO clientes(nombre,apellido,email,contrasena,direccion_envio) VALUES
-('Juan','Perez','juan@gmail.com','123456','Bogotá'),
-('Maria','Gomez','maria@gmail.com','123456','Medellín'),
-('Carlos','Lopez','carlos@gmail.com','123456','Cali'),
-('Ana','Martinez','ana@gmail.com','123456','Barranquilla'),
-('Pedro','Ramirez','pedro@gmail.com','123456','Bucaramanga'),
-('Laura','Rodriguez','laura@gmail.com','123456','Cartagena'),
-('Andres','Torres','andres@gmail.com','123456','Pereira'),
-('Sofia','Diaz','sofia@gmail.com','123456','Manizales'),
-('Daniel','Castro','daniel@gmail.com','123456','Tunja'),
-('Valentina','Moreno','valentina@gmail.com','123456','Cúcuta'),
-('Miguel','Rojas','miguel@gmail.com','123456','Ibagué'),
-('Camila','Vargas','camila@gmail.com','123456','Neiva'),
-('Jorge','Suarez','jorge@gmail.com','123456','Montería'),
-('Paula','Herrera','paula@gmail.com','123456','Santa Marta');
-
--- INTENTOS LOGIN
-INSERT INTO intentos_login (usuario, ip, fecha_intento, exitoso) VALUES
-('administrador', '192.168.1.10', '2025-05-01 08:15:22', 'exitoso'),
-('support_user', '192.168.1.15', '2025-05-01 09:03:11', 'fallido'),
-('inventory_user', '192.168.1.20', '2025-05-01 09:15:47', 'exitoso'),
-('analista_user', '192.168.1.25', '2025-05-02 10:22:18', 'fallido'),
-('marketing_user', '192.168.1.30', '2025-05-02 10:24:33', 'fallido'),
-('support_user', '192.168.1.15', '2025-05-02 10:25:01', 'exitoso'),
-('visitante_user', '192.168.1.35', '2025-05-03 11:40:55', 'exitoso'),
-('inventory_user', '192.168.1.20', '2025-05-03 14:12:09', 'fallido'),
-('administrador', '192.168.1.10', '2025-05-04 08:01:17', 'exitoso'),
-('analista_user', '192.168.1.25', '2025-05-04 16:45:28', 'exitoso'),
-('marketing_user', '192.168.1.30', '2025-05-05 09:17:42', 'fallido'),
-('support_user', '192.168.1.15', '2025-05-05 12:33:51', 'fallido'),
-('visitante_user', '192.168.1.35', '2025-05-06 15:08:14', 'fallido'),
-('administrador', '192.168.1.10', '2025-05-06 18:20:37', 'exitoso'),
-('inventory_user', '192.168.1.20', '2025-05-07 07:55:03', 'exitoso');
-
-
--- PRODUCTOS
-INSERT INTO productos
-(nombre,descripcion,categoria,proveedor,precio,costo,stock,sku,activo)
-VALUES
-('The Dark Side of the Moon','Pink Floyd',1,1,180000,120000,15,'VIN001',TRUE),
-('The Wall','Pink Floyd',1,1,190000,125000,10,'VIN002',TRUE),
-('Led Zeppelin IV','Led Zeppelin',1,2,175000,115000,12,'VIN003',TRUE),
-('Back in Black','AC/DC',1,2,170000,110000,18,'VIN004',TRUE),
-('Hotel California','Eagles',1,3,165000,105000,14,'VIN005',TRUE),
-
-('Thriller','Michael Jackson',2,1,185000,125000,20,'VIN006',TRUE),
-('Bad','Michael Jackson',2,1,180000,120000,15,'VIN007',TRUE),
-('1989','Taylor Swift',2,2,200000,135000,12,'VIN008',TRUE),
-('Future Nostalgia','Dua Lipa',2,2,190000,130000,10,'VIN009',TRUE),
-('Teenage Dream','Katy Perry',2,3,170000,110000,8,'VIN010',TRUE),
-
-('Kind of Blue','Miles Davis',3,3,210000,145000,7,'VIN011',TRUE),
-('Blue Train','John Coltrane',3,3,220000,150000,5,'VIN012',TRUE),
-('Time Out','Dave Brubeck',3,4,205000,140000,6,'VIN013',TRUE),
-('A Love Supreme','John Coltrane',3,4,215000,145000,8,'VIN014',TRUE),
-('Head Hunters','Herbie Hancock',3,5,210000,145000,6,'VIN015',TRUE),
-
-('Master of Puppets','Metallica',4,1,195000,130000,10,'VIN016',TRUE),
-('Ride the Lightning','Metallica',4,1,190000,125000,8,'VIN017',TRUE),
-('Paranoid','Black Sabbath',4,2,180000,120000,12,'VIN018',TRUE),
-('Painkiller','Judas Priest',4,2,185000,122000,7,'VIN019',TRUE),
-('Rust in Peace','Megadeth',4,3,190000,125000,9,'VIN020',TRUE),
-
-('Illmatic','Nas',5,3,175000,115000,11,'VIN021',TRUE),
-('The Marshall Mathers LP','Eminem',5,4,185000,125000,10,'VIN022',TRUE),
-('The Chronic','Dr. Dre',5,4,180000,120000,9,'VIN023',TRUE),
-('Ready to Die','Notorious B.I.G.',5,5,175000,118000,8,'VIN024',TRUE),
-('To Pimp a Butterfly','Kendrick Lamar',5,5,210000,145000,12,'VIN025',TRUE),
-
-('Discovery','Daft Punk',6,1,220000,150000,10,'VIN026',TRUE),
-('Random Access Memories','Daft Punk',6,1,225000,155000,9,'VIN027',TRUE),
-('Play','Moby',6,2,180000,120000,8,'VIN028',TRUE),
-('Immunity','Jon Hopkins',6,2,190000,125000,7,'VIN029',TRUE),
-('Music for the Jilted Generation','Prodigy',6,3,200000,135000,6,'VIN030',TRUE),
-
-('Legend','Bob Marley',7,3,185000,125000,20,'VIN031',TRUE),
-('Exodus','Bob Marley',7,4,180000,120000,14,'VIN032',TRUE),
-('Catch a Fire','Bob Marley',7,4,175000,115000,12,'VIN033',TRUE),
-('Marcus Garvey','Burning Spear',7,5,170000,110000,8,'VIN034',TRUE),
-('Equal Rights','Peter Tosh',7,5,165000,105000,10,'VIN035',TRUE),
-
-('Siembra','Willie Colon & Ruben Blades',8,1,190000,130000,10,'VIN036',TRUE),
-('Lo Mato','Willie Colon',8,2,175000,115000,8,'VIN037',TRUE),
-('Celia y Johnny','Celia Cruz',8,2,180000,120000,12,'VIN038',TRUE),
-('Comedia','Hector Lavoe',8,3,170000,110000,10,'VIN039',TRUE),
-('Asalto Navideño','Hector Lavoe',8,3,175000,115000,8,'VIN040',TRUE),
-
-('Las Cuatro Estaciones','Vivaldi',9,4,230000,160000,5,'VIN041',TRUE),
-('Requiem','Mozart',9,4,220000,150000,6,'VIN042',TRUE),
-('Sinfonía No. 5','Beethoven',9,5,225000,155000,5,'VIN043',TRUE),
-('El Lago de los Cisnes','Tchaikovsky',9,5,210000,145000,4,'VIN044',TRUE),
-('Canon in D','Pachelbel',9,5,200000,135000,7,'VIN045',TRUE),
-
-('AM','Arctic Monkeys',10,1,180000,120000,14,'VIN046',TRUE),
-('Currents','Tame Impala',10,2,210000,145000,12,'VIN047',TRUE),
-('Is This It','The Strokes',10,3,190000,130000,10,'VIN048',TRUE),
-('Funeral','Arcade Fire',10,4,195000,130000,8,'VIN049',TRUE),
-('In Rainbows','Radiohead',10,5,220000,150000,9,'VIN050',TRUE);
-
 -- VENTAS
 INSERT INTO ventas(id_cliente, fecha_venta, estado, total, id_sucursal) VALUES
 (1,'2025-01-03 10:15:22','entregado',1100000,1),
@@ -389,83 +378,113 @@ INSERT INTO ventas(id_cliente, fecha_venta, estado, total, id_sucursal) VALUES
 (12,'2025-05-27 16:44:19','enviado',1070000,1),
 (1,'2025-06-03 20:35:47','entregado',2975000,2);
 
-
 -- DETALLES
 INSERT INTO detalle_ventas
 (id_venta, id_producto, cantidad, precio_unitario_congelado)
 VALUES
-(1,1,1,180000),
-(1,6,1,185000),
+(1,1,2,180000),
+(1,6,3,185000),
 (1,31,1,185000),
-(2,6,2,185000),
+(2,6,4,185000),
 (2,8,1,200000),
-(3,16,1,195000),
+(2,46,2,180000),
+(3,16,2,195000),
 (3,18,1,180000),
-(4,21,2,175000),
-(4,25,1,210000),
-(5,46,1,180000),
-(5,47,1,210000),
+(3,20,1,190000),
+(4,21,3,175000),
+(4,25,2,210000),
+(4,22,1,185000),
+(5,46,2,180000),
+(5,47,3,210000),
 (5,48,1,190000),
-(6,1,2,180000),
+(5,50,1,220000),
+(6,1,3,180000),
 (6,2,1,190000),
-(7,31,1,185000),
+(6,6,2,185000),
+(6,31,2,185000),
+(7,31,2,185000),
 (7,32,1,180000),
-(8,36,2,190000),
-(8,38,1,180000),
-(9,46,2,180000),
-(9,6,1,185000),
+(7,35,2,165000),
+(8,36,3,190000),
+(8,38,2,180000),
+(8,40,1,175000),
+(9,46,4,180000),
+(9,6,2,185000),
+(9,47,1,210000),
 (10,41,1,230000),
-(11,25,2,210000),
-(11,1,1,180000),
-(12,47,1,210000),
+(10,45,2,200000),
+(10,42,1,220000),
+(11,25,3,210000),
+(11,1,2,180000),
+(11,6,1,185000),
+(12,47,2,210000),
 (12,50,1,220000),
-(13,31,2,185000),
-(13,33,1,175000),
-(14,8,1,200000),
+(12,48,2,190000),
+(13,31,4,185000),
+(13,33,2,175000),
+(13,34,1,170000),
+(14,8,2,200000),
 (14,9,1,190000),
-(14,10,1,170000),
-(15,42,1,220000),
+(14,10,3,170000),
+(14,6,1,185000),
+(15,42,2,220000),
 (15,43,1,225000),
-(16,6,1,185000),
-(16,31,1,185000),
-(16,46,1,180000),
-(17,1,1,180000),
-(17,6,1,185000),
-(17,7,1,180000),
+(15,41,1,230000),
+(16,6,3,185000),
+(16,31,2,185000),
+(16,46,2,180000),
+(16,1,1,180000),
+(17,1,4,180000),
+(17,6,3,185000),
+(17,7,2,180000),
 (17,31,1,185000),
-(18,47,2,210000),
-(18,25,1,210000),
-(19,46,1,180000),
-(19,48,1,190000),
+(18,47,3,210000),
+(18,25,2,210000),
+(18,50,1,220000),
+(19,46,3,180000),
+(19,48,2,190000),
 (19,49,1,195000),
-(20,16,2,195000),
-(20,20,1,190000),
-(21,21,1,175000),
-(21,22,1,185000),
+(19,47,1,210000),
+(20,16,3,195000),
+(20,20,2,190000),
+(20,18,1,180000),
+(21,21,2,175000),
+(21,22,2,185000),
 (21,23,1,180000),
-(22,26,1,220000),
-(22,27,1,225000),
-(23,31,3,185000),
-(23,35,1,165000),
-(24,36,1,190000),
-(24,40,1,175000),
-(25,46,1,180000),
-(25,47,1,210000),
+(21,24,1,175000),
+(22,26,2,220000),
+(22,27,2,225000),
+(22,30,1,200000),
+(23,31,5,185000),
+(23,35,2,165000),
+(23,6,1,185000),
+(23,1,1,180000),
+(24,36,2,190000),
+(24,40,3,175000),
+(24,38,1,180000),
+(25,46,4,180000),
+(25,47,2,210000),
 (25,50,1,220000),
-(26,11,1,210000),
-(26,12,1,220000),
-(27,1,1,180000),
-(27,6,1,185000),
-(27,31,1,185000),
-(27,46,1,180000),
-(28,25,1,210000),
-(28,47,1,210000),
-(29,38,2,180000),
-(29,39,1,170000),
-(30,1,1,180000),
-(30,6,2,185000),
-(30,31,1,185000),
-(30,46,1,180000);
+(25,6,1,185000),
+(26,11,2,210000),
+(26,12,2,220000),
+(26,14,1,215000),
+(27,1,2,180000),
+(27,6,4,185000),
+(27,31,3,185000),
+(27,46,2,180000),
+(27,47,1,210000),
+(28,25,2,210000),
+(28,47,2,210000),
+(28,48,1,190000),
+(29,38,3,180000),
+(29,39,2,170000),
+(29,36,1,190000),
+(30,1,5,180000),
+(30,6,4,185000),
+(30,31,3,185000),
+(30,46,2,180000),
+(30,47,2,210000);
 
 
 -- ====================================================
@@ -505,8 +524,6 @@ add column estado enum('activo', 'inactivo') default 'activo';
 alter table productos 
 add column eliminado boolean default false,
 add column fecha_eliminacion timestamp null;
-
-
 -- ====================================================
 -- Consultas avanzadas
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
@@ -681,10 +698,6 @@ JOIN clientes c ON c.id_cliente = v.id_cliente
 WHERE estado <> 'cancelado'
 GROUP BY c.id_cliente;
 
-
--- TIMESTAMPDIFF  (determinar el intervalo de tiempo entre dos fechas en una unidad de medida específica, lo que la hace ideal para 
--- cálculos de edad, mediciones de duración y cualquier análisis temporal.)
-
 -- 16: Margen de Beneficio por Producto: Calcular el margen de beneficio para cada producto (requiere añadir un campo costo a la tabla productos).
 SELECT
     p.nombre AS producto,
@@ -811,11 +824,109 @@ FROM ventas_por_mes
 GROUP BY categoria
 ORDER BY proyeccion_proximo_mes DESC;
 
-
 -- ===================================
--- Funciones
+-- FUNCIONES
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
+
+-- 1. Calcular el monto total de una venta especifica
+
+CREATE FUNCTION fn_CalcularTotalVenta(p_id_venta INT)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE v_total DECIMAL(10,2);
+
+    SELECT SUM(cantidad * precio_unitario_congelado)
+    INTO v_total
+    FROM detalle_ventas
+    WHERE id_venta = p_id_venta;
+
+    RETURN v_total;
+END 
+
+SELECT fn_CalcularTotalVenta(1);
+
+-- 2.  Validar si hay stock suficiente pra un producto
+
+CREATE FUNCTION verificar_stock (p_id_producto INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+	DECLARE v_stock_restante INT;
+	
+	SELECT p.stock 
+	INTO v_stock_restante
+	FROM productos p 
+	WHERE p.id_producto = p_id_producto;
+	
+	IF v_stock_restante > 0 THEN
+		RETURN v_stock_restante;
+	ELSE
+		RETURN 'El producto esta sin stock';
+	END IF;
+END;
+
+
+SELECT verificar_stock(1);
+
+-- 3. Devolver el precio actual de un producto
+
+CREATE FUNCTION obtener_precio (p_id_producto INT)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+	DECLARE total DECIMAL(10,2);
+		
+	SELECT p.precio
+	INTO total
+	FROM productos p 
+	WHERE p.id_producto = p_id_producto;
+	
+	RETURN total;
+	
+END;
+
+SELECT obtener_precio(1);
+
+-- 4. Calcular la edad de un cliente 
+
+CREATE FUNCTION calcular_edad (c_id_cliente INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+	
+	DECLARE fechaN INT;
+	DECLARE id_cliente INT;
+	
+	SELECT  YEAR(c.fecha_nacimiento)
+	INTO fechaN
+	FROM clientes c
+	WHERE c.id_cliente = c_id_cliente;
+	
+	RETURN YEAR(CURRENT_TIMESTAMP()) - fechaN;
+END;
+
+SELECT calcular_edad(1);
+
+-- 5. Devuelve el nombre y apellido de un cliente
+
+CREATE FUNCTION  formatearNombre (c_id_cliente INT)
+RETURNS VARCHAR(150)
+DETERMINISTIC
+BEGIN
+	
+	DECLARE nombreCompleto VARCHAR(150);
+	
+	SELECT CONCAT(c.nombre ,' ', c.apellido )
+	INTO nombreCompleto
+	FROM clientes c
+	WHERE c.id_cliente = c_id_cliente;
+	
+	RETURN nombreCompleto;
+END;
+
+SELECT formatearNombre (6);
 
 -- 6: fn_EsClienteNuevo: Devuelve VERDADERO si un cliente realizó su primera compra en los últimos 30 días.
 
@@ -952,11 +1063,187 @@ SELECT fn_ValidarFormatoEmail('juan@gmail.com')   AS valido;    -- TRUE
 SELECT fn_ValidarFormatoEmail('correosinArroba')  AS invalido;  -- FALSE
 SELECT fn_ValidarFormatoEmail('raro@sin-punto')   AS invalido;  -- FALSE
 
+
+
+-- 11. Devuelve el nombre de la categoria a partir del ID 
+
+CREATE FUNCTION obtener_nombreXcategoria (p_id_producto int)
+RETURNS VARCHAR(100)
+DETERMINISTIC
+BEGIN
+	DECLARE nombreC VARCHAR(100);
+	
+	SELECT c.nombre 
+	INTO nombreC
+	FROM categorias c 
+	JOIN productos p ON p.categoria = c.id_categoria 
+	WHERE p.id_producto = p_id_producto;
+	
+	RETURN nombreC;
+END;
+
+SELECT obtener_nombreXcategoria(2);
+
+-- 12. Cuenta el numero total de compras realizadas por un cliente
+
+CREATE FUNCTION contarVentasCliente (c_id_cliente INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+	DECLARE totalventas INT;
+
+	SELECT COUNT(v.id_venta ) 
+	INTO totalventas
+	FROM ventas v 
+	WHERE v.id_cliente = c_id_cliente;
+	
+	RETURN totalventas;
+END;
+
+SELECT contarVentasCliente(1);
+
+-- 13. devolver el numero de dias transcurridos desde la ultima compra de un cliente
+
+CREATE FUNCTION calcular_dias_ultima_compra (c_id_cliente INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+	DECLARE diastotales INT;
+	
+	SELECT DATEDIFF(MAX(v.fecha_venta), MIN(v.fecha_venta))
+	INTO diastotales
+	FROM ventas v
+	WHERE v.id_cliente = c_id_cliente;
+	
+	RETURN diastotales;
+END;
+
+SELECT calcular_dias_ultima_compra (1);
+
+
+-- 14. Asignar un estado de lealtad a un cliente segun su gasto total
+
+CREATE FUNCTION asignar_lealtad (c_id_cliente INT)
+RETURNS VARCHAR(50)
+DETERMINISTIC
+BEGIN
+	DECLARE estado VARCHAR(50);
+	DECLARE totalventas INT;
+	
+	SELECT COUNT(v.id_venta) 
+	INTO totalventas
+	FROM ventas v
+	WHERE v.id_cliente = c_id_cliente;
+	
+	IF totalventas <= 2 
+		THEN SET estado = 'pobre';
+	
+	ELSEIF  totalventas > 2 AND totalventas <= 4
+		THEN SET estado = 'Plata';
+	
+	ELSEIF totalventas > 4
+		THEN SET  estado = 'Oro';
+	
+	END IF;
+	
+	RETURN estado;
+END;
+
+SELECT asignar_lealtad(6);
+
+-- 15. Genera  codigo de producto (supongo solo testear, osea como una funcion hipotetica)
+
+CREATE FUNCTION generarSKU (p_id_producto INT)
+RETURNS VARCHAR(50)
+DETERMINISTIC
+BEGIN
+	
+	RETURN CONCAT('VIN-', LPAD(p_id_producto, 6, '0'));
+END;
+
+SELECT generarSKU (15);
+
+-- LPAD =(rellenar una cadena de texto por la izquierda con un carácter o secuencia específica)
+-- Usualmente usado para codigos y 
+
+
 -- ===================================
--- Roles y permisos
+-- ROLES Y PERMISOS
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
 
+-- 1. Crear rol administrador con todo privilegio
+
+	CREATE ROLE administrador;
+	
+	GRANT ALL PRIVILEGES
+	ON proyectoSQL.*
+	TO administrador;
+	
+-- 2. Crear rol Gerente de marketing con acceso solo de lectura a ventas y clientes
+	
+	CREATE ROLE gerente_marketing;
+	
+	GRANT SELECT
+	ON proyectoSQL.ventas
+	TO gerente_marketing;
+	
+	GRANT SELECT
+	ON proyectoSQL.clientes
+	TO gerente_marketing;
+
+	-- 3. Crear rol analista de datos con acceso solo a lectura de todas las tablas, excepto auditoria
+	
+	CREATE ROLE analista_datos;
+	
+	GRANT SELECT
+	ON proyectoSQL.ventas
+	TO analista_datos;
+	
+	GRANT SELECT
+	ON proyectoSQL.categorias
+	TO analista_datos;
+	
+	GRANT SELECT
+	ON proyectoSQL.clientes
+	TO analista_datos;
+	
+	GRANT SELECT
+	ON proyectoSQL.detalle_ventas
+	TO analista_datos;
+	
+	GRANT SELECT
+	ON proyectoSQL.productos
+	TO analista_datos;
+	
+	GRANT SELECT
+	ON proyectoSQL.proveedores
+	TO analista_datos;
+	
+-- 4. Crear rol del empleado que solo pueda modificar la tabla productos (stock y ubicacion)
+	
+	CREATE ROLE empleado_inventario;
+	
+	GRANT SELECT 
+	ON proyectoSQL.productos
+	TO empleado_inventario
+	
+	GRANT UPDATE (stock), INSERT, UPDATE, DELETE, CREATE
+	ON proyectoSQL.productos
+	TO empleado_inventario;
+	
+-- 5. Crear el Rol auditor financiero, solo acceso a lectura de ventas, productos y logs de precios
+	
+	CREATE ROLE auditor_financiero;
+	
+	GRANT SELECT
+	ON proyectoSQL.ventas
+	TO auditor_financiero;
+	
+	GRANT SELECT 
+	ON proyectoSQL.productos
+	TO auditor_financiero;
+	
 -- rol 6: Crear el rol Auditor_Financiero con acceso de solo lectura a ventas, productos y logs de precios.
 drop role if exists Auditor_Financiero;
 create role if not exists Auditor_Financiero;
@@ -1048,7 +1335,60 @@ to support_user;
 grant select 
 on proyectoSQL.productos
 to support_user;
+	
+-- 11. Impedir que el analista de datos pueda ejecutar comandos DELETE O TRUNCATE
+	
+	REVOKE DELETE 
+	ON proyectoSQL.*
+	FROM analista_datos;
+	
+	REVOKE DROP
+	ON proyectoSQL.*
+	FROM analista_datos;
+	
+-- 12. otorgar al rol gerente de marketing permiso para ejecutar procedimientos almacenados de reportes de marketing
+	
+	GRANT EXECUTE   -- execute permite hacer procedimientos y funciones no como update que altera tablas
+	ON PROCEDURE proyectoSQL.reporte_ventas_mensuales  -- pues no existe esa tabla pero es un ejemplo
+	TO gerente_marketing;
 
+-- 13. Crear una vista que oculte informacion sensilble al dar acceso a ella al rol atencion al cliente
+	CREATE VIEW vista_clientes_atencion AS
+	SELECT 
+	    id_cliente,
+	    nombre,
+	    apellido,
+	    CONCAT(
+	        LEFT(email, 3),
+	        '***@',
+	        SUBSTRING_INDEX(email, '@', -1)
+	    ) AS email_oculto,
+	    direccion_envio,
+	    fecha_registro
+	FROM clientes;
+
+CREATE ROLE atencion_cliente;
+
+GRANT SELECT
+ON proyectoSQL.vista_clientes_atencion
+TO atencion_cliente;
+
+-- 14.Revocar el permiso de UPDATE sobre la columna precio de la tabla productos al rol Empleado_Inventario.
+	
+	REVOKE UPDATE (precio)
+	ON proyectoSQL.productos
+	FROM empleado_inventario;
+
+-- 15. Implementar una política de contraseñas seguras para todos los usuarios.
+	
+INSTALL COMPONENT 'file://component_validate_password';
+
+SET GLOBAL validate_password.policy = STRONG;
+SET GLOBAL validate_password.length = 12;
+SET GLOBAL validate_password.mixed_case_count = 1;
+SET GLOBAL validate_password.number_count = 1;
+SET GLOBAL validate_password.special_char_count = 1;
+	
 -- rol 16: Asegurar que el usuario root no pueda ser usado desde conexiones remotas.
 SELECT user, host
 FROM mysql.user
@@ -1110,8 +1450,6 @@ select *
 from ventas v
 where id_sucursal = 4;
 
-
-
 drop user if exists 'ventas_bogota'@'localhost';
 create user 'ventas_bogota'@'localhost'
 identified by 'ventasbogota2026';
@@ -1144,21 +1482,104 @@ grant update, insert
 on proyectoSQL.ventas
 to 'ventas_cartagena'@'localhost';
 
--- 20: Auditar todos los intentos de inicio de sesión fallidos en la base de datos.
-
-drop role if exists auditor_login;
-create role auditor_login;
-
-grant select 
-on proyectoSQL.intentos_login
-to auditor_login;
-
 -- ===================================
--- Triggers 
+-- TRIGGERS
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
 
--- 6. trg_update_total_gastado_cliente: Actualiza un campo total_gastado en la tabla clientes después de cada compra.
+-- 1. guarda un log de cambios de precios
+	CREATE TRIGGER trg_audit_precio_producto_after_update
+	AFTER UPDATE ON productos
+	FOR EACH ROW
+	BEGIN
+		INSERT INTO logs_cambios_precio(id_producto,precio_anterior, precio_nuevo) VALUES 
+		(OLD.id_producto, OLD.precio, NEW.precio);
+	END;
+	
+	
+UPDATE productos
+SET precio = 200000
+WHERE id_producto = 1;
+	
+
+-- 2. verificar el stock antes de registrar una venta
+
+	CREATE TRIGGER trg_check_stock_before_insert_venta 
+	BEFORE INSERT ON detalle_ventas
+	FOR EACH ROW
+	BEGIN
+		
+		DECLARE v_stock INT;
+		
+		SELECT stock
+		INTO v_stock
+		FROM productos
+		WHERE id_producto = NEW.id_producto;
+		
+		IF v_stock < NEW.cantidad THEN
+		SIGNAL SQLSTATE '45000'
+		SET MESSAGE_TEXT = 'El producto se agoto :(';
+		END IF;
+	END;
+	
+INSERT INTO detalle_ventas
+(id_venta, id_producto, cantidad, precio_unitario_congelado)
+VALUES
+(31, 1, 20, 180000);
+
+-- 3.  Decrementa el stock después de una venta.
+
+	CREATE TRIGGER trg_update_stock_after_insert_venta
+	AFTER INSERT INTO detalle_ventas
+	FOR EACH ROW
+	BEGIN
+	    UPDATE productos
+	    SET stock = stock - NEW.cantidad
+	    WHERE id_producto = NEW.id_producto;
+	END;
+	
+-- 4. Impedir eliminar una categoria si tiene productos asociados
+		
+	CREATE TRIGGER trg_prevent_delete_categoria_with_products
+	BEFORE DELETE ON categorias
+	FOR EACH ROW
+	BEGIN
+	
+	    DECLARE cantidadProductos INT;
+	
+	    SELECT COUNT(*)
+	    INTO cantidadProductos
+	    FROM productos
+	    WHERE categoria = OLD.id_categoria;
+	
+	    IF cantidadProductos > 0 THEN
+	        SIGNAL SQLSTATE '45000'
+	        SET MESSAGE_TEXT = 'Error: la categoria tiene productos asociados';
+	    END IF;
+	END;
+		    
+ 	DELETE FROM categorias
+	WHERE id_categoria = 1;
+ 	
+ -- 5. Registra en una tabla de auditoría cada vez que se crea un nuevo cliente.
+ 	
+ 	CREATE TRIGGER trg_log_new_customer_after_insert 
+ 	AFTER INSERT ON clientes
+ 	FOR EACH ROW
+ 	BEGIN
+ 		INSERT INTO auditoria_clientes (id_cliente, mensaje)
+ 		VALUES (NEW.id_cliente, CONCAT('Se ha añadido un nuevo cliente de id: ',NEW.id_cliente));
+ 	END;
+ 	
+ 	INSERT INTO clientes
+	(nombre, apellido, email, fecha_nacimiento, contrasena, direccion_envio)
+	VALUES
+	('Luis', 'Mendoza', 'luis@gmail.com', '1994-05-10', '123456', 'Bogotá');
+
+ -- 6. trg_update_total_gastado_cliente: Actualiza un campo total_gastado en la tabla clientes después de cada compra.
+
+alter table clientes 
+add total_gastado decimal(10,2);
 
 delimiter //
 create trigger trg_update_total_gastado_cliente
@@ -1175,6 +1596,10 @@ end //
 delimiter
 
 -- 7. trg_set_fecha_modificacion_producto: Actualiza automáticamente la fecha de última modificación de un producto.
+
+alter table clientes 
+add total_gastado decimal(10,2);
+
 delimiter //
 create trigger trg_set_fecha_modificacion_producto
 before update 
@@ -1237,9 +1662,98 @@ begin
 end //
 delimiter ;
 
+ -- 11. Audita cada cambio de estado en un pedido (ej. de 'Procesando' a 'Enviado').
+ 	
+ 	CREATE TRIGGER trg_log_order_status_change
+ 	AFTER UPDATE ON ventas
+ 	FOR EACH ROW
+ 	BEGIN
+	 	
+	 	 IF OLD.estado <> NEW.estado THEN
+	 	    
+ 		INSERT INTO auditoria_estado_pedido (id_venta, estado_anterior, estado_actual)
+ 		VALUES (OLD.id_venta, OLD.estado, NEW.estado);
+ 		END IF;
+ 	END;
+ 	
+ 	UPDATE ventas
+	SET estado = 'procesando'
+	WHERE id_venta = 3;	
 
+ -- 12. Impide que el precio de un producto se establezca en cero o un valor negativo.
+ 	
+ 	CREATE TRIGGER trg_prevent_price_zero_or_less
+ 	BEFORE INSERT ON productos
+ 	FOR EACH ROW
+ 	BEGIN
+ 		
+ 		IF NEW.precio <= 0 THEN 
+ 	        SIGNAL SQLSTATE '45000'
+	        SET MESSAGE_TEXT = 'Error: el precio no puede ser negativo';
+ 		END IF;
+ 	END;
+ 	
+	INSERT INTO productos
+	(nombre, precio, stock, categoria, costo, sku)
+	VALUES
+	('Nuevo Vinilo', -4, 10, 1, 0, 90);
+	
+-- 13.  Inserta un registro en una tabla alertas si el stock baja de un umbral.
+	
+	CREATE TRIGGER trg_send_stock_alert_on_low_stock
+	AFTER UPDATE ON productos
+	FOR EACH ROW
+	BEGIN
+	    IF NEW.stock < 5 AND OLD.stock >= 5 THEN
+	        INSERT INTO alertas_stock (id_producto, stockACT)
+	        VALUES (NEW.id_producto, NEW.stock);
+	    END IF;
+	END;
+	
+	UPDATE productos
+	SET stock = 4
+	WHERE id_producto = 1;
+	
+-- 14.  Mueve una venta eliminada a una tabla de archivo en lugar de borrarla permanentemente.
+	
+	CREATE TRIGGER trg_archive_deleted_venta
+	AFTER DELETE ON ventas
+	FOR EACH ROW
+	BEGIN
+		INSERT INTO ventas_eliminadas (id_venta, id_cliente, estado, total) VALUES 
+		(OLD.id_venta, OLD.id_cliente, OLD.estado, OLD.total);
+	END;
+	
+	
+	DELETE FROM detalle_ventas
+	WHERE id_venta = 29;
 
+	DELETE FROM ventas
+	WHERE id_venta = 29;
+	
+-- 15.  Valida el formato del email antes de insertar o actualizar un cliente.
+	
+	CREATE TRIGGER trg_validate_email_format_on_customer
+	BEFORE INSERT ON clientes
+	FOR EACH ROW
+	BEGIN
+		
+		IF NEW.email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
+			SIGNAL SQLSTATE '45000'
+			SET MESSAGE_TEXT = 'Formato no valido';
+		END IF;
+	END;
+		
+	INSERT INTO clientes
+	(nombre, email)
+	VALUES
+	('Juan', 'juan.gmail.com');
+	
 -- 16. trg_update_last_order_date_customer: Actualiza la fecha del último pedido en la tabla clientes.
+
+alter table clientes 
+add column ultimo_pedido timestamp null;	
+	
 delimiter //
 create trigger trg_update_last_order_date_customer
 after insert 
@@ -1253,6 +1767,11 @@ end //
 delimiter ;
 
 -- 17. trg_prevent_self_referral: Impide que un cliente se referencie a sí mismo en un programa de referidos.
+
+alter table clientes 
+add column cliente_referido int, 
+add foreign key (cliente_referido) references clientes(id_cliente);
+
 delimiter //
 create trigger trg_prevent_self_referral
 before insert 
@@ -1319,15 +1838,123 @@ begin
 end //
 delimiter
 
-
 -- ===================================
--- Eventos
+-- EVENTOS
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
+
 SHOW VARIABLES LIKE 'event_scheduler';
 show events;
 
--- 6. evt_generate_reorder_list_daily: Crea una lista de productos que necesitan ser reabastecidos.
+SET GLOBAL event_scheduler = ON;
+
+-- 1.  Genera un reporte de ventas semanal.
+
+	CREATE TABLE reporte_ventas_semanal (
+	    desde DATE,
+	    hasta DATE,
+	    cantidad_ventas INT,
+	    total_semana DECIMAL(12,2)
+	);
+	
+DELIMITER //
+
+CREATE EVENT evt_generate_weekly_sales_report
+ON SCHEDULE EVERY 1 WEEK
+DO
+BEGIN
+    INSERT INTO reporte_ventas_semanal
+    SELECT
+        MIN(DATE(fecha_venta)),
+        MAX(DATE(fecha_venta)),
+        COUNT(*),
+        SUM(total)
+    FROM ventas
+    WHERE DATE(fecha_venta) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+      AND estado != 'cancelado';
+END //
+
+DELIMITER ;
+	
+	SELECT * FROM reporte_ventas_semanal;
+	
+-- 2. Borra tablas temporales diariamente.
+	
+	
+	CREATE EVENT evt_cleanup_temp_tables_daily
+	ON SCHEDULE EVERY 1 DAY
+	DO
+	BEGIN
+	    DELETE FROM ventas_diarias;
+	    DELETE FROM lista_reabastecimiento;
+	END;
+	
+-- 3.  Archiva logs de más de 6 meses en tablas históricas.
+	
+	CREATE TABLE historial_logs_cambios_precio (
+	    id INT,
+	    id_producto INT,
+	    precio_anterior DECIMAL(10,2),
+	    precio_nuevo DECIMAL(10,2),
+	    fecha TIMESTAMP
+	);
+	
+	CREATE EVENT evt_archive_old_logs_monthly
+	ON SCHEDULE EVERY 1 MONTH
+	DO
+	BEGIN
+	    INSERT INTO historial_logs_cambios_precio
+	    SELECT *
+	    FROM logs_cambios_precio
+	    WHERE fecha < DATE_SUB(CURDATE(), INTERVAL 6 MONTH);
+	
+	    DELETE FROM logs_cambios_precio
+	    WHERE fecha < DATE_SUB(CURDATE(), INTERVAL 6 MONTH);
+	END;
+	    
+-- 4. Desactiva códigos de descuento que han expirado.
+	    
+	CREATE TABLE promociones (
+    id_promocion INT AUTO_INCREMENT PRIMARY KEY,
+    codigo VARCHAR(20),
+    fecha_expiracion DATE,
+    activa BOOLEAN DEFAULT TRUE
+	);
+	
+	
+	CREATE EVENT evt_deactivate_expired_promotions_hourly
+	ON SCHEDULE EVERY 1 HOUR
+	DO
+	BEGIN
+	    UPDATE promociones
+	    SET activa = FALSE
+	    WHERE fecha_expiracion < CURDATE();
+	END;
+	
+-- 5. Recalcula el nivel de lealtad de los clientes cada noche.
+	    
+	ALTER TABLE clientes
+	ADD nivel_lealtad VARCHAR(20); 
+	
+	CREATE EVENT evt_recalculate_customer_loyalty_tiers_nightly
+	ON SCHEDULE EVERY 1 DAY
+	DO
+	BEGIN
+	    UPDATE clientes c
+	    SET nivel_lealtad =
+	    (
+	        SELECT
+	            CASE
+	                WHEN COUNT(*) >= 5 THEN 'Oro'
+	                WHEN COUNT(*) >= 3 THEN 'Plata'
+	                ELSE 'Bronce'
+	            END
+	        FROM ventas v
+	        WHERE v.id_cliente = c.id_cliente
+	    );
+	END;
+	
+	-- 6. evt_generate_reorder_list_daily: Crea una lista de productos que necesitan ser reabastecidos.
 delimiter //
 create event evt_generate_reorder_list_daily
 on schedule every 1 day
@@ -1410,6 +2037,122 @@ begin
 end //
 delimiter ; 
 
+-- 11.  Genera una lista de clientes que cumplen años para enviarles un cupón.
+
+	CREATE TABLE cumpleanos_clientes (
+    id_cliente INT,
+    nombre VARCHAR(100),
+    email VARCHAR(100),
+    fecha_generacion DATE
+	);
+
+
+CREATE EVENT evt_send_birthday_greetings_daily
+ON SCHEDULE EVERY 1 DAY
+DO
+BEGIN
+    INSERT INTO cumpleanos_clientes
+    SELECT
+        id_cliente,
+        nombre,
+        email,
+        CURDATE()
+    FROM clientes
+    WHERE DAY(fecha_nacimiento) = DAY(CURDATE())
+      AND MONTH(fecha_nacimiento) = MONTH(CURDATE());
+END;
+
+-- 12. Actualiza una tabla con el ranking de los productos más populares.
+
+	CREATE TABLE ranking_productos (
+    id_producto INT,
+    nombre VARCHAR(100),
+    unidades_vendidas INT,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	
+CREATE EVENT evt_update_product_rankings_hourly
+ON SCHEDULE EVERY 1 HOUR
+DO
+BEGIN
+    DELETE FROM ranking_productos;
+
+    INSERT INTO ranking_productos
+    SELECT
+        p.id_producto,
+        p.nombre,
+        SUM(dv.cantidad)
+    FROM productos p
+    INNER JOIN detalle_ventas dv ON p.id_producto = dv.id_producto
+    GROUP BY p.id_producto, p.nombre
+    ORDER BY SUM(dv.cantidad) DESC;
+END;
+
+-- 13. Realiza un backup lógico de las tablas más importantes cada noche.
+
+CREATE TABLE backup_clientes AS SELECT * FROM clientes;
+CREATE TABLE backup_productos AS SELECT * FROM productos;
+CREATE TABLE backup_ventas AS SELECT * FROM ventas;
+
+
+CREATE EVENT evt_backup_critical_tables_daily
+ON SCHEDULE EVERY 1 DAY
+DO
+BEGIN
+    DELETE FROM backup_clientes;
+    DELETE FROM backup_productos;
+    DELETE FROM backup_ventas;
+
+    INSERT INTO backup_clientes SELECT * FROM clientes;
+    INSERT INTO backup_productos SELECT * FROM productos;
+    INSERT INTO backup_ventas SELECT * FROM ventas;
+END;
+
+
+	CREATE TABLE carritos (
+    id_carrito INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT,
+    fecha_creacion TIMESTAMP,
+    estado VARCHAR(50)
+	);
+	
+	CREATE EVENT evt_clear_abandoned_carts_daily
+	ON SCHEDULE EVERY 1 DAY
+	DO
+	BEGIN
+	    DELETE FROM carritos
+	    WHERE estado = 'abandonado'
+	      AND fecha_creacion < DATE_SUB(NOW(), INTERVAL 72 HOUR);
+	END;
+	
+-- 15. Calcula los KPIs (Key Performance Indicators) del mes y los guarda en una tabla.
+	
+CREATE TABLE kpis_mensuales (
+    mes INT,
+    anio INT,
+    total_ventas DECIMAL(12,2),
+    cantidad_ventas INT,
+    promedio_venta DECIMAL(12,2),
+	fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	
+	CREATE EVENT evt_calculate_monthly_kpis
+	ON SCHEDULE EVERY 1 MONTH
+	DO
+	BEGIN
+	    INSERT INTO kpis_mensuales
+	    SELECT
+	        MONTH(fecha_venta),
+	        YEAR(fecha_venta),
+	        SUM(total),
+	        COUNT(*),
+	        AVG(total)
+	    FROM ventas
+	    WHERE MONTH(fecha_venta) = MONTH(CURDATE())
+	      AND YEAR(fecha_venta) = YEAR(CURDATE())
+	      AND estado <> 'cancelado'
+	    GROUP BY MONTH(fecha_venta), YEAR(fecha_venta);
+	END;
 
 -- 16. evt_refresh_materialized_views_nightly: Actualiza las vistas materializadas (si se usan).
 delimiter //
@@ -1504,6 +2247,297 @@ end //
 delimiter ;
 
 -- ===================================
--- Procedimientos almacenados
+-- PROCEDIMIENTOS ALMACENADOS
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
+
+-- 1. Procesa una nueva venta de forma transaccional.
+
+	CREATE PROCEDURE sp_RealizarNuevaVenta(IN p_id_cliente INT,IN p_id_producto INT,IN p_cantidad INT,IN p_id_sucursal INT)
+	BEGIN
+	    DECLARE v_precio DECIMAL(10,2);
+	    DECLARE v_stock INT;
+	    DECLARE v_id_venta INT;
+	
+	    START TRANSACTION;
+	
+	    SELECT precio, stock
+	    INTO v_precio, v_stock
+	    FROM productos
+	    WHERE id_producto = p_id_producto;
+	
+	    IF v_stock >= p_cantidad THEN
+	
+	        INSERT INTO ventas(id_cliente, estado, total, id_sucursal)
+	        VALUES (
+	            p_id_cliente,
+	            'procesando',
+	            v_precio * p_cantidad,
+	            p_id_sucursal
+	        );
+	
+	        SET v_id_venta = LAST_INSERT_ID();
+	
+	        INSERT INTO detalle_ventas(
+	            id_venta,
+	            id_producto,
+	            cantidad,
+	            precio_unitario_congelado
+	        )
+	        VALUES (
+	            v_id_venta,
+	            p_id_producto,
+	            p_cantidad,
+	            v_precio
+	        );
+	
+	        UPDATE productos
+	        SET stock = stock - p_cantidad
+	        WHERE id_producto = p_id_producto;
+	
+	        COMMIT;
+	
+	    ELSE
+	        ROLLBACK;
+	    END IF;
+	END;
+	    
+	CALL sp_RealizarNuevaVenta(1, 1, 2, 1);
+	
+-- 2. Inserta un nuevo producto y sus atributos iniciales.
+	
+	CREATE PROCEDURE sp_AgregarNuevoProducto(
+	    IN p_nombre VARCHAR(100),
+	    IN p_descripcion VARCHAR(255),
+	    IN p_categoria INT,
+	    IN p_proveedor INT,
+	    IN p_precio DECIMAL(10,2),
+	    IN p_costo DECIMAL(10,2),
+	    IN p_stock INT,
+	    IN p_sku VARCHAR(20)
+	)
+	BEGIN
+	    INSERT INTO productos(
+	        nombre,
+	        descripcion,
+	        categoria,
+	        proveedor,
+	        precio,
+	        costo,
+	        stock,
+	        sku,
+	        activo
+	    )
+	    VALUES (
+	        p_nombre,
+	        p_descripcion,
+	        p_categoria,
+	        p_proveedor,
+	        p_precio,
+	        p_costo,
+	        p_stock,
+	        p_sku,
+	        TRUE
+	    );
+	END;
+
+	CALL sp_AgregarNuevoProducto('Abbey Road', 'The Beatles',1,1,200000,140000, 10,'VIN051');
+	
+-- 3. Actualiza la dirección de un cliente en todas las tablas relevantes.
+	
+	CREATE PROCEDURE sp_ActualizarDireccionCliente(
+	    IN p_id_cliente INT,
+	    IN p_nueva_direccion VARCHAR(100)
+	)
+	BEGIN
+	    UPDATE clientes
+	    SET direccion_envio = p_nueva_direccion
+	    WHERE id_cliente = p_id_cliente;
+	END;
+
+	CALL sp_ActualizarDireccionCliente(1, 'Nueva dirección en Bogotá');
+	
+-- 4. Gestiona la devolución de un producto, ajustando el stock y generando un crédito.
+	
+	CREATE TABLE creditos_cliente (
+    id_credito INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT,
+    id_producto INT,
+    valor_credito DECIMAL(10,2),
+    fecha_credito TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	
+CREATE PROCEDURE sp_ProcesarDevolucion(
+    IN p_id_venta INT,
+    IN p_id_producto INT,
+    IN p_cantidad INT)
+	BEGIN
+	    DECLARE v_id_cliente INT;
+	    DECLARE v_precio DECIMAL(10,2);
+	
+	    SELECT id_cliente
+	    INTO v_id_cliente
+	    FROM ventas
+	    WHERE id_venta = p_id_venta;
+	
+	    SELECT precio_unitario_congelado
+	    INTO v_precio
+	    FROM detalle_ventas
+	    WHERE id_venta = p_id_venta
+	      AND id_producto = p_id_producto
+	    LIMIT 1;
+	
+	    UPDATE productos
+	    SET stock = stock + p_cantidad
+	    WHERE id_producto = p_id_producto;
+	
+	    INSERT INTO creditos_cliente(
+	        id_cliente,
+	        id_producto,
+	        valor_credito
+	    )
+	    VALUES (
+	        v_id_cliente,
+	        p_id_producto,
+	        v_precio * p_cantidad
+	    );
+	END;
+	    
+	CALL sp_ProcesarDevolucion(1, 1, 1);
+	
+-- 5. Devuelve el historial completo de compras de un cliente.
+	
+	CREATE PROCEDURE sp_ObtenerHistorialComprasCliente(
+	    IN p_id_cliente INT
+	)
+	BEGIN
+	    SELECT
+	        v.id_venta,
+	        DATE(v.fecha_venta) AS fecha,
+	        v.estado,
+	        p.nombre AS producto,
+	        dv.cantidad,
+	        dv.precio_unitario_congelado,
+	        v.total
+	    FROM ventas v
+	    INNER JOIN detalle_ventas dv ON v.id_venta = dv.id_venta
+	    INNER JOIN productos p ON dv.id_producto = p.id_producto
+	    WHERE v.id_cliente = p_id_cliente
+	    ORDER BY v.fecha_venta DESC;
+	END;
+	
+	CALL sp_ObtenerHistorialComprasCliente(1);
+	
+-- 11. Registra un nuevo cliente validando que el email no exista.
+	
+	CREATE PROCEDURE sp_RegistrarNuevoCliente(
+	    IN p_nombre VARCHAR(50),
+	    IN p_apellido VARCHAR(70),
+	    IN p_email VARCHAR(100),
+	    IN p_fecha_nacimiento DATE,
+	    IN p_contrasena VARCHAR(200),
+	    IN p_direccion_envio VARCHAR(100))
+	BEGIN
+	    IF EXISTS (
+	        SELECT 1 
+	        FROM clientes 
+	        WHERE email = p_email
+	    ) THEN
+	        SELECT 'Ese email ya existe' AS mensaje;
+	    ELSE
+	        INSERT INTO clientes( nombre,apellido, email,fecha_nacimiento,contrasena, direccion_envio)
+	        VALUES (p_nombre,  p_apellido,  p_email,p_fecha_nacimiento,p_contrasena,p_direccion_envio );
+	        SELECT 'Cliente registrado correctamente' AS mensaje;
+	    END IF;
+	END;
+	
+	CALL sp_RegistrarNuevoCliente('Luis','Mendoza','luis@gmail.com', '1997-04-15', '123456','Bogotá' );
+	
+-- 12. Devuelve toda la información de un producto, incluyendo datos de su proveedor y categoría.
+	
+	CREATE PROCEDURE sp_ObtenerDetallesProductoCompleto(IN p_id_producto INT)
+	BEGIN
+	    SELECT
+	        p.id_producto,
+	        p.nombre AS producto,
+	        p.descripcion,
+	        p.precio,
+	        p.costo,
+	        p.stock,
+	        p.sku,
+	        p.activo,
+	        c.nombre AS categoria,
+	        pr.nombre AS proveedor,
+	        pr.email_contcto,
+	        pr.telefono
+	    FROM productos p
+	    LEFT JOIN categorias c ON p.categoria = c.id_categoria
+	    LEFT JOIN proveedores pr ON p.proveedor = pr.id_proveedor
+	    WHERE p.id_producto = p_id_producto;
+	END;
+	
+	CALL sp_ObtenerDetallesProductoCompleto(1);
+	
+-- 13. Fusiona dos cuentas de cliente duplicadas en una sola.
+	
+	CREATE PROCEDURE sp_FusionarCuentasCliente(
+	    IN p_cliente_principal INT,
+	    IN p_cliente_duplicado INT
+	)
+	BEGIN
+	    UPDATE ventas
+	    SET id_cliente = p_cliente_principal
+	    WHERE id_cliente = p_cliente_duplicado;
+	
+	    DELETE FROM clientes
+	    WHERE id_cliente = p_cliente_duplicado;
+	
+	    SELECT 'Cuentas fusionadas correctamente' AS mensaje;
+	END;
+	   
+	CALL sp_FusionarCuentasCliente(1, 2);
+	    
+-- 14. Asigna o cambia el proveedor de un producto.
+	    
+	CREATE PROCEDURE sp_AsignarProductoAProveedor(
+	    IN p_id_producto INT,
+	    IN p_id_proveedor INT
+	)
+	BEGIN
+	    UPDATE productos
+	    SET proveedor = p_id_proveedor
+	    WHERE id_producto = p_id_producto;
+	
+	    SELECT 'Listo calisto, proveedor actualizado' AS mensaje;
+	END;
+	   
+	CALL sp_AsignarProductoAProveedor(1, 3);
+	    
+-- 15. Realiza una búsqueda avanzada de productos con filtros por nombre, categoría, rango de precios, etc.
+
+CREATE PROCEDURE sp_BuscarProductos(
+    IN p_nombre VARCHAR(100),
+    IN p_categoria INT,
+    IN p_precio_min DECIMAL(10,2),
+    IN p_precio_max DECIMAL(10,2)
+)
+BEGIN
+    SELECT
+        p.id_producto,
+        p.nombre,
+        p.descripcion,
+        c.nombre AS categoria,
+        pr.nombre AS proveedor,
+        p.precio,
+        p.stock,
+        p.sku
+    FROM productos p
+    LEFT JOIN categorias c ON p.categoria = c.id_categoria
+    LEFT JOIN proveedores pr ON p.proveedor = pr.id_proveedor
+    WHERE (p_nombre IS NULL OR p.nombre LIKE CONCAT('%', p_nombre, '%'))
+      AND (p_categoria IS NULL OR p.categoria = p_categoria)
+      AND (p_precio_min IS NULL OR p.precio >= p_precio_min)
+      AND (p_precio_max IS NULL OR p.precio <= p_precio_max);
+END;
+
+CALL sp_BuscarProductos('Pink', NULL, 100000, 200000);
