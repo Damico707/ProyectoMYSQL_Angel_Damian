@@ -37,9 +37,33 @@ CREATE TABLE clientes (
     email VARCHAR(100),
     contrasena VARCHAR(200) NOT NULL,
     direccion_envio VARCHAR(100),
-    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_gastado decimal(10,2)
 ); 
 
+CREATE TABLE intentos_login (
+    id_intento INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(100),
+    ip varchar(50),
+    fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    exitoso enum('exitoso', 'fallido')
+);
+
+CREATE TABLE logs_permisos (
+    id_log INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(100),
+    permiso VARCHAR(100),
+    accion ENUM('GRANT','REVOKE'),
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE cambios_permisos (
+    id_cambio INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(100),
+    permiso VARCHAR(100),
+    accion ENUM('GRANT','REVOKE'),
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE productos(
 	id_producto INT AUTO_INCREMENT PRIMARY KEY,
@@ -175,6 +199,25 @@ INSERT INTO clientes(nombre,apellido,email,contrasena,direccion_envio) VALUES
 ('Camila','Vargas','camila@gmail.com','123456','Neiva'),
 ('Jorge','Suarez','jorge@gmail.com','123456','Montería'),
 ('Paula','Herrera','paula@gmail.com','123456','Santa Marta');
+
+-- INTENTOS LOGIN
+INSERT INTO intentos_login (usuario, ip, fecha_intento, exitoso) VALUES
+('administrador', '192.168.1.10', '2025-05-01 08:15:22', 'exitoso'),
+('support_user', '192.168.1.15', '2025-05-01 09:03:11', 'fallido'),
+('inventory_user', '192.168.1.20', '2025-05-01 09:15:47', 'exitoso'),
+('analista_user', '192.168.1.25', '2025-05-02 10:22:18', 'fallido'),
+('marketing_user', '192.168.1.30', '2025-05-02 10:24:33', 'fallido'),
+('support_user', '192.168.1.15', '2025-05-02 10:25:01', 'exitoso'),
+('visitante_user', '192.168.1.35', '2025-05-03 11:40:55', 'exitoso'),
+('inventory_user', '192.168.1.20', '2025-05-03 14:12:09', 'fallido'),
+('administrador', '192.168.1.10', '2025-05-04 08:01:17', 'exitoso'),
+('analista_user', '192.168.1.25', '2025-05-04 16:45:28', 'exitoso'),
+('marketing_user', '192.168.1.30', '2025-05-05 09:17:42', 'fallido'),
+('support_user', '192.168.1.15', '2025-05-05 12:33:51', 'fallido'),
+('visitante_user', '192.168.1.35', '2025-05-06 15:08:14', 'fallido'),
+('administrador', '192.168.1.10', '2025-05-06 18:20:37', 'exitoso'),
+('inventory_user', '192.168.1.20', '2025-05-07 07:55:03', 'exitoso');
+
 
 -- PRODUCTOS
 INSERT INTO productos
@@ -955,6 +998,8 @@ select *
 from ventas v
 where id_sucursal = 4;
 
+
+
 drop user if exists 'ventas_bogota'@'localhost';
 create user 'ventas_bogota'@'localhost'
 identified by 'ventasbogota2026';
@@ -987,13 +1032,200 @@ grant update, insert
 on proyectoSQL.ventas
 to 'ventas_cartagena'@'localhost';
 
+-- 20: Auditar todos los intentos de inicio de sesión fallidos en la base de datos.
 
+drop role if exists auditor_login;
+create role auditor_login;
 
+grant select 
+on proyectoSQL.intentos_login
+to auditor_login;
 
 -- ===================================
 -- Triggers 
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
+
+-- 6. trg_update_total_gastado_cliente: Actualiza un campo total_gastado en la tabla clientes después de cada compra.
+alter table clientes 
+add total_gastado decimal(10,2);
+
+
+
+delimiter //
+create trigger trg_update_total_gastado_cliente
+after insert 
+on ventas
+for each row
+begin
+	if new.estado = 'entregado' then
+	update clientes
+	set total_gastado = total_gastado + new.total
+	where id_cliente = new.id_cliente;
+	end if;
+end //
+delimiter
+
+-- 7. trg_set_fecha_modificacion_producto: Actualiza automáticamente la fecha de última modificación de un producto.
+
+alter table productos 
+add column fecha_modificacion timestamp null;
+
+delimiter //
+create trigger trg_set_fecha_modificacion_producto
+before update 
+on productos
+for each row
+begin
+	set new.fecha_modificacion = current_timestamp;
+end //
+delimiter
+
+-- 8. trg_prevent_negative_stock: Impide que el stock de un producto se actualice a un valor negativo.
+
+delimiter //
+create trigger trg_prevent_negative_stock
+before update 
+on productos 
+for each row
+begin
+	if new.stock < 0 then
+		SIGNAL SQLSTATE '45000'
+    	SET MESSAGE_TEXT = 'El stock no puede ser negativo';
+	end if;
+end //
+delimiter
+
+-- 9. trg_capitalize_nombre_cliente: Convierte a mayúscula la primera letra del nombre y apellido de un cliente al insertarlo.
+
+delimiter //
+create trigger trg_capitalize_nombre_cliente
+before insert  
+on clientes
+for each row 
+begin 
+	SET new.nombre = CONCAT(UPPER(LEFT(new.nombre, 1)),LOWER(SUBSTRING(new.nombre, 2)));
+	SET new.apellido = CONCAT(UPPER(LEFT(new.apellido, 1)),LOWER(SUBSTRING(new.apellido, 2)));
+end //
+delimiter
+
+-- prueba
+INSERT INTO clientes
+(nombre, apellido, email, contrasena)
+VALUES
+('jUaN', 'péREZ', 'juan@test.com', '123');
+
+select nombre, apellido 
+from clientes 
+where email = 'juan@test.com';
+
+-- 10. trg_recalculate_total_venta_on_detalle_change: Recalcula el total en la tabla ventas si se modifica un detalle_venta.
+
+delimiter //
+create trigger trg_recalculate_total_venta_on_detalle_change
+after update 
+on ventas
+for each row 
+begin
+	if estado = 'entregado' then
+	set total = new.cantidad * precio
+	where producto.id_producto = detalle_venta.id_producto
+end //
+delimiter ;
+
+
+
+-- 16. trg_update_last_order_date_customer: Actualiza la fecha del último pedido en la tabla clientes.
+
+alter table clientes 
+add column ultimo_pedido timestamp null;
+
+delimiter //
+create trigger trg_update_last_order_date_customer
+after insert 
+on ventas 
+for each row
+begin 
+	update clientes
+	set ultimo_pedido = new.fecha_venta
+	where id_cliente = new.id_cliente;
+end //
+delimiter ;
+
+-- 17. trg_prevent_self_referral: Impide que un cliente se referencie a sí mismo en un programa de referidos.
+alter table clientes 
+add column cliente_referido int, 
+add foreign key (cliente_referido) references clientes(id_cliente);
+
+delimiter //
+create trigger trg_prevent_self_referral
+before insert 
+on clientes 
+for each row
+begin
+	if new.cliente_referido = new.id_cliente then 
+		SIGNAL SQLSTATE '45000'
+    	SET MESSAGE_TEXT = 'No se puede añadir usted mismo como referido';
+	end if;
+end //
+delimiter ;
+
+-- 18. trg_log_permission_changes: Audita los cambios en los permisos de los usuarios.
+
+delimiter //
+create trigger trg_log_permission_changes
+after insert 
+on cambios_permisos
+for each row
+begin
+	insert into logs_permisos (usuario, permiso, accion)
+	values (new.usuario, new.permiso, new.accion);
+end //
+delimiter ;
+
+-- 19. trg_assign_default_category_on_null: Asigna una categoría "General" si se inserta un producto sin categoría.
+insert into categorias(nombre) values
+('General');
+
+delimiter //
+create trigger trg_assign_default_category_on_null
+before insert 
+on productos
+for each row
+begin
+	declare v_categoria_general int;
+
+	select id_categoria 
+	into v_categoria_general 
+	from categorias 
+	where nombre = 'General';
+	
+	if new.categoria is null then 
+		set new.categoria = v_categoria_general;
+	end if ;
+end //
+delimiter ;
+
+-- 20. trg_update_producto_count_in_categoria: Mantiene un contador de cuántos productos hay en cada categoría.
+alter table categorias 
+add column total_productos int default 0;
+
+delimiter //
+create trigger trg_update_producto_count_in_categoria
+after insert 
+on productos 
+for each row 
+begin
+	update categorias
+	set total_productos = (
+		select count(*)
+		from productos 
+		where categoria = new.categoria
+	)
+	where id_categoria = new.categoria;
+end //
+delimiter
+
 
 -- ===================================
 -- Eventos
