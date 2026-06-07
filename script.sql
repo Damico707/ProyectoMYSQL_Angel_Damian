@@ -65,6 +65,55 @@ CREATE TABLE cambios_permisos (
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+create table lista_reabastecimiento(
+	id_producto int,
+	nombre varchar(100),
+	stock_actual int,
+	fecha_generacion timestamp default current_timestamp
+);
+
+create table ventas_diarias(
+	id_venta int,
+	id_producto int,
+	id_cliente int,
+	fecha_venta timestamp
+);
+
+create table inconsistencias(
+	id_inconsistencia int auto_increment primary key,
+	tipo varchar(100),
+	descripcion varchar(255),
+	fecha_revision timestamp default current_timestamp
+);
+
+create table mv_ventas_por_categoria(
+	categoria varchar(100),
+	total_ventas decimal(12,2)
+);
+
+create table log_tamano_db(
+	id_log int auto_increment primary key,
+	fecha_registro timestamp default current_timestamp,
+	tamano_db decimal(10,2)
+);
+
+create table actividad_sospechosa(
+	id_actividad int auto_increment primary key,
+	id_cliente int,
+	nombre varchar(100),
+	cantidad_cancelados int,
+	fecha_deteccion timestamp default current_timestamp
+);
+
+create table reporte_proveedores(
+	id_proveedor int,
+	proveedor varchar(100),
+	total_ventas decimal(12,2),
+	unidades_vendidas int,
+	pediddos_participados int,
+	fecha_reporte date
+);
+
 CREATE TABLE productos(
 	id_producto INT AUTO_INCREMENT PRIMARY KEY,
 	nombre VARCHAR(100) NOT NULL,
@@ -104,6 +153,29 @@ CREATE TABLE detalle_ventas (
     FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 );
 
+-- ==========================
+-- ÍNDICES
+-- ==========================
+
+CREATE INDEX idx_ventas_cliente
+ON ventas(id_cliente);
+
+CREATE INDEX idx_ventas_sucursal
+ON ventas(id_sucursal);
+
+CREATE INDEX idx_productos_categoria
+ON productos(categoria);
+
+CREATE INDEX idx_productos_proveedor
+ON productos(proveedor);
+
+CREATE INDEX idx_detalle_venta
+ON detalle_ventas(id_venta);
+
+
+-- ==========================
+-- ENCRIPTACIONES CONTRASEÑAS
+-- ==========================
 
 -- encriptacion contraseña insert
 delimiter //
@@ -126,6 +198,7 @@ BEGIN
 	END IF;
 end //
 delimiter
+
 
 -- ===================================
 -- Insercion de datos
@@ -393,6 +466,45 @@ VALUES
 (30,6,2,185000),
 (30,31,1,185000),
 (30,46,1,180000);
+
+
+-- ====================================================
+-- ALTER TABLES
+-- ====================================================
+
+-- TRIGGERS
+
+-- 6
+alter table clientes 
+add total_gastado decimal(10,2);
+
+-- 7
+alter table productos 
+add column fecha_modificacion timestamp null;
+
+-- 16
+alter table clientes 
+add column ultimo_pedido timestamp null;
+
+-- 17 
+alter table clientes 
+add column cliente_referido int, 
+add foreign key (cliente_referido) references clientes(id_cliente);
+
+-- 20
+alter table categorias 
+add column total_productos int default 0;
+
+-- EVENTS
+
+-- 8
+alter table clientes 
+add column estado enum('activo', 'inactivo') default 'activo';
+
+-- event 20
+alter table productos 
+add column eliminado boolean default false,
+add column fecha_eliminacion timestamp null;
 
 
 -- ====================================================
@@ -1047,10 +1159,6 @@ to auditor_login;
 -- ====================================================
 
 -- 6. trg_update_total_gastado_cliente: Actualiza un campo total_gastado en la tabla clientes después de cada compra.
-alter table clientes 
-add total_gastado decimal(10,2);
-
-
 
 delimiter //
 create trigger trg_update_total_gastado_cliente
@@ -1067,10 +1175,6 @@ end //
 delimiter
 
 -- 7. trg_set_fecha_modificacion_producto: Actualiza automáticamente la fecha de última modificación de un producto.
-
-alter table productos 
-add column fecha_modificacion timestamp null;
-
 delimiter //
 create trigger trg_set_fecha_modificacion_producto
 before update 
@@ -1136,10 +1240,6 @@ delimiter ;
 
 
 -- 16. trg_update_last_order_date_customer: Actualiza la fecha del último pedido en la tabla clientes.
-
-alter table clientes 
-add column ultimo_pedido timestamp null;
-
 delimiter //
 create trigger trg_update_last_order_date_customer
 after insert 
@@ -1153,10 +1253,6 @@ end //
 delimiter ;
 
 -- 17. trg_prevent_self_referral: Impide que un cliente se referencie a sí mismo en un programa de referidos.
-alter table clientes 
-add column cliente_referido int, 
-add foreign key (cliente_referido) references clientes(id_cliente);
-
 delimiter //
 create trigger trg_prevent_self_referral
 before insert 
@@ -1207,9 +1303,6 @@ end //
 delimiter ;
 
 -- 20. trg_update_producto_count_in_categoria: Mantiene un contador de cuántos productos hay en cada categoría.
-alter table categorias 
-add column total_productos int default 0;
-
 delimiter //
 create trigger trg_update_producto_count_in_categoria
 after insert 
@@ -1231,7 +1324,184 @@ delimiter
 -- Eventos
 -- (Damian 1 - 5 / 11 - 15 -- Juan 6 - 10 / 16 - 20)
 -- ====================================================
+SHOW VARIABLES LIKE 'event_scheduler';
+show events;
 
+-- 6. evt_generate_reorder_list_daily: Crea una lista de productos que necesitan ser reabastecidos.
+delimiter //
+create event evt_generate_reorder_list_daily
+on schedule every 1 day
+do 
+begin
+	truncate table lista_reabastecimiento;
+	
+	insert into lista_reabastecimiento (id_producto, nombre, stock_actual)
+	select id_producto, nombre, stock
+	from productos 
+	where stock < 8;
+end //
+delimiter ;
+
+
+-- 7. evt_rebuild_indexes_weekly: Reconstruye los índices de las tablas más usadas para optimizar el rendimiento.
+delimiter //
+create event evt_rebuild_indexes_weakly
+on schedule every 1 week
+do
+begin
+	analyze table productos;
+	analyze table ventas;
+	analyze table detalle_ventas;
+	analyze table clientes;
+	analyze table categorias;
+	analyze table proveedores;
+
+end //
+delimiter ;
+
+-- 8. evt_suspend_inactive_accounts_quarterly: Desactiva cuentas de clientes sin actividad en más de un año.
+delimiter //
+create event evt_suspend_inactive_accounts_quarterly
+on schedule every 3 month
+do 
+begin
+	update clientes
+	set estado = 'inactivo'
+	where ultimo_pedido is null 
+		or ultimo_pedido < now() - interval 1 year;
+end //
+delimiter ;
+
+-- 9. evt_aggregate_daily_sales_data: Agrega los datos de ventas del día en una tabla de resumen para acelerar reportes.
+delimiter //
+create event evt_aggregate_daily_sales_data
+on schedule every 1 day
+do 
+begin
+	truncate table ventas_diarias;
+
+	insert into ventas_diarias (id_venta, id_producto, id_cliente, fecha_venta)
+	select dv.id_venta, 
+		   dv.id_producto, 
+		   v.id_cliente, 
+		   v.fecha_venta
+	from detalle_ventas dv
+	join ventas v
+		on dv.id_venta = v.id_venta
+	where date(v.fecha_venta) = curdate();
+end //
+delimiter ;
+
+-- 10. evt_check_data_consistency_nightly: Busca inconsistencias en los datos (ej. ventas sin detalles).
+delimiter //
+create event evt_check_data_consistency_nightly
+on schedule every 1 day
+do
+begin
+	truncate table inconsistencias;
+	insert into inconsistencias (tipo, descripcion)
+	select 
+		'venta sin detalles',
+		concat('la venta ', v.id_venta, ' no tiene detalles asociados')
+	from ventas v
+	left join detalle_ventas dv 
+		on v.id_venta = dv.id_venta
+	where dv.id_venta is null;
+end //
+delimiter ; 
+
+
+-- 16. evt_refresh_materialized_views_nightly: Actualiza las vistas materializadas (si se usan).
+delimiter //
+create event evt_refresh_materialized_views_nightly
+on schedule every 1 day
+do
+begin 
+	truncate table mv_ventas_por_categoria;
+
+	insert into mv_ventas_por_categoria (categoria, total_ventas)
+	select c.nombre,
+		   sum(dv.cantidad * dv.precio_unitario_congelado)
+	from detalle_ventas dv
+	join productos p
+        ON dv.id_producto = p.id_producto
+    join categorias c
+        on p.categoria = c.id_categoria
+    group by c.id_categoria;
+end //
+delimiter ;
+
+-- 17. evt_log_database_size_weekly: Registra el tamaño de la base de datos para monitorear su crecimiento.
+delimiter //
+create event evt_log_database_size_weekly
+on schedule every 1 week
+do
+begin
+	insert into log_tamano_db ( tamaño_db)
+	select round (sum(data_length + index_length) / 1024 / 1024, 2)
+	from information_schema.tables
+	where table_schema = 'proyectoSQL';
+end //
+delimiter ;
+
+-- 18. evt_detect_fraudulent_activity_hourly: Busca patrones de actividad sospechosa (ej. múltiples pedidos fallidos).
+delimiter //
+create event evt_detect_fraudulent_activity_hourly
+on schedule every 1 hour
+do 
+begin
+	truncate table actividad_sospechosa;
+	insert into actividad_sospechosa (id_cliente, nombre, cantidad_cancelados)
+	select v.id_cliente,
+		   concat(c.nombre, ' ', c.apellido) as  nombre,
+		   count(*)
+	from ventas v 
+	join clientes c 
+		on v.id_cliente = c.id_cliente
+	where v.estado = 'cancelado'
+		and v.fecha_venta >= now() - interval 1 hour
+	group by v.id_cliente
+	having count(*) >= 3;
+end // 
+delimiter
+
+-- 19. evt_generate_supplier_performance_report_monthly: Crea un reporte mensual sobre el rendimiento de los proveedores.
+delimiter //
+create event evt_generate_supplier_performance_report_monthly
+on schedule every 1 month
+do
+begin
+	insert into reporte_proveedores (id_proveedor, proveedor, total_ventas, unidades_vendidas, pedidos_participados)
+	
+	select p.id_proveedor,
+		   p.nombre,
+		   sum(dv.cantidad * dv.precio_unitario_congelado) as total_ventas,
+		   count(distinct v.id_venta) as pedidos_participados,
+		   curdate()
+	from proveedores p
+	join productos pr
+		on p.id_proveedor = pr.proveedor
+	join detalle_ventas dv
+		on pr.id_producto = dv.id_producto
+	join ventas v
+		on dv.id_venta = v.id_venta
+	where v.estado = 'estregado'
+	group by p.id_proveedor, p.nombre;
+end //
+delimiter ;
+
+-- 20. evt_purge_soft_deleted_records_weekly: Elimina permanentemente los registros marcados para borrado hace más de 30 días.
+
+delimiter //
+create event if not exists evt_purge_soft_deleted_records_weekly
+on schedule every 1 week
+do
+begin
+	delete from productos
+	where eliminado = true
+		and fecha_eliminacion < now() - interval 30 day;
+end //
+delimiter ;
 
 -- ===================================
 -- Procedimientos almacenados
