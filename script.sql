@@ -17,39 +17,8 @@ CREATE TABLE categorias(
 CREATE TABLE proveedores(
 	id_proveedor INT AUTO_INCREMENT PRIMARY KEY,
 	nombre VARCHAR(100) NOT NULL,
-	email_contcto VARCHAR(100) UNIQUE,
+	email_contacto VARCHAR(100) UNIQUE,
 	telefono VARCHAR(15)
-);
-
-
-CREATE TABLE productos(
-	id_producto INT AUTO_INCREMENT PRIMARY KEY,
-	nombre VARCHAR(100) NOT NULL,
-	descripcion VARCHAR(255),
-	categoria INT,
-	proveedor INT,
-	precio DECIMAL(10,2) NOT NULL,
-	costo DECIMAL(10,2) NOT NULL,
-	stock INT DEFAULT 0 NOT NULL,
-	sku VARCHAR(20) UNIQUE NOT NULL,
-	fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-	activo BOOLEAN NOT NULL DEFAULT FALSE,
-	
-	FOREIGN KEY(categoria) REFERENCES categorias(id_categoria),
-	FOREIGN KEY(proveedor) REFERENCES proveedores(id_proveedor)
-);
-
-
-CREATE TABLE clientes (
-    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
-    nombre varchar(50),
-    apellido VARCHAR(70),
-    email VARCHAR(100),
-    fecha_nacimiento DATE,
-    contrasena VARCHAR(200) NOT NULL,
-    direccion_envio VARCHAR(100),
-    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    
 );
 
 create table sucursal (
@@ -62,27 +31,115 @@ create table sucursal (
     estado enum('Activa', 'Inactiva', 'Cerrada')
 );
 
-CREATE TABLE ventas (
-    id_venta INT AUTO_INCREMENT PRIMARY KEY,
-    id_cliente INT NOT NULL,
-    fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    estado ENUM('pendiente_pago','procesando', 'enviado', 'entregado', 'cancelado'),
-    total DECIMAL(10,2),
-    id_sucursal int,
-
-    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
-    FOREIGN KEY(id_sucursal) REFERENCES sucursal(id_sucursal)
+CREATE TABLE clientes (
+    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50),
+    apellido VARCHAR(70),
+    email VARCHAR(100) UNIQUE,
+    fecha_nacimiento DATE,
+    contrasena VARCHAR(200) NOT NULL,
+    direccion_envio VARCHAR(100),
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    
 );
 
-CREATE TABLE detalle_ventas (
-    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
-    id_venta INT NOT NULL,
-    id_producto INT NOT NULL,
-    cantidad INT NOT NULL CHECK (cantidad > 0),
-    precio_unitario_congelado DECIMAL(10,2) NOT NULL,
-    
-    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
-    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+CREATE TABLE intentos_login (
+    id_intento INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(100),
+    ip varchar(50),
+    fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    exitoso enum('exitoso', 'fallido')
+);
+
+CREATE TABLE logs_permisos (
+    id_log INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(100),
+    permiso VARCHAR(100),
+    accion ENUM('GRANT','REVOKE'),
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE cambios_permisos (
+    id_cambio INT AUTO_INCREMENT PRIMARY KEY,
+    usuario VARCHAR(100),
+    permiso VARCHAR(100),
+    accion ENUM('GRANT','REVOKE'),
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+create table lista_reabastecimiento(
+	id_producto int primary key,
+	nombre varchar(100),
+	stock_actual int,
+	fecha_generacion timestamp default current_timestamp
+);
+
+create table ventas_diarias(
+	id_venta int primary key,
+	id_producto int,
+	id_cliente int,
+	fecha_venta timestamp
+);
+
+create table inconsistencias(
+	id_inconsistencia int auto_increment primary key,
+	tipo varchar(100),
+	descripcion varchar(255),
+	fecha_revision timestamp default current_timestamp
+);
+
+create table mv_ventas_por_categoria(
+	categoria varchar(100),
+	total_ventas decimal(12,2)
+);
+
+create table log_tamano_db(
+	id_log int auto_increment primary key,
+	fecha_registro timestamp default current_timestamp,
+	tamano_db decimal(10,2)
+);
+
+create table actividad_sospechosa(
+	id_actividad int auto_increment primary key,
+	id_cliente int,
+	nombre varchar(100),
+	cantidad_cancelados int,
+	fecha_deteccion timestamp default current_timestamp
+);
+
+create table reporte_proveedores(
+	id_proveedor int primary key,
+	proveedor varchar(100),
+	total_ventas decimal(12,2),
+	unidades_vendidas int,
+	pedidos_participados int,
+	fecha_reporte date
+);
+
+create table actualizacion_stock_m(
+	id_actualizacion int auto_increment primary key,
+	id_producto int,
+	stock_anterior int,
+	nuevo_stock int,
+	motivo varchar(255),
+	fecha_actualizacion timestamp default current_timestamp
+);
+
+create table  notificaciones_pedidos(
+	id_notificacion int auto_increment primary key,
+	id_venta int,
+	estado_anterior varchar(100),
+	nuevo_estado varchar(100),
+	fecha_notificacion timestamp default current_timestamp
+);
+
+create table resenas_productos (
+	id_resena int auto_increment primary key,
+	id_producto int,
+	id_cliente int,
+	calificacion int,
+	comentario varchar(255),
+	fecha timestamp default current_timestamp
 );
 
 CREATE TABLE logs_cambios_precio (
@@ -122,55 +179,46 @@ CREATE TABLE logs_cambios_precio (
 		fecha_eliminacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 
-
-create table lista_reabastecimiento(
-	id_producto int,
-	nombre varchar(100),
-	stock_actual int,
-	fecha_generacion timestamp default current_timestamp
+CREATE TABLE productos(
+	id_producto INT AUTO_INCREMENT PRIMARY KEY,
+	nombre VARCHAR(100) NOT NULL,
+	descripcion VARCHAR(255),
+	categoria INT,
+	proveedor INT,
+	precio DECIMAL(10,2) NOT NULL,
+	costo DECIMAL(10,2) NOT NULL,
+	stock INT DEFAULT 0 NOT NULL,
+	sku VARCHAR(20) UNIQUE NOT NULL,
+	fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	activo BOOLEAN NOT NULL DEFAULT FALSE,
+	
+	FOREIGN KEY(categoria) REFERENCES categorias(id_categoria),
+	FOREIGN KEY(proveedor) REFERENCES proveedores(id_proveedor)
 );
 
-create table ventas_diarias(
-	id_venta int,
-	id_producto int,
-	id_cliente int,
-	fecha_venta timestamp
+CREATE TABLE ventas (
+    id_venta INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    estado ENUM('pendiente_pago','procesando', 'enviado', 'entregado', 'cancelado'),
+    total DECIMAL(10,2),
+    id_sucursal int,
+
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+    FOREIGN KEY(id_sucursal) REFERENCES sucursal(id_sucursal)
 );
 
-create table inconsistencias(
-	id_inconsistencia int auto_increment primary key,
-	tipo varchar(100),
-	descripcion varchar(255),
-	fecha_revision timestamp default current_timestamp
+CREATE TABLE detalle_ventas (
+    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT NOT NULL,
+    id_producto INT NOT NULL,
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_unitario_congelado DECIMAL(10,2) NOT NULL,
+    
+    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 );
 
-create table mv_ventas_por_categoria(
-	categoria varchar(100),
-	total_ventas decimal(12,2)
-);
-
-create table log_tamano_db(
-	id_log int auto_increment primary key,
-	fecha_registro timestamp default current_timestamp,
-	tamano_db decimal(10,2)
-);
-
-create table actividad_sospechosa(
-	id_actividad int auto_increment primary key,
-	id_cliente int,
-	nombre varchar(100),
-	cantidad_cancelados int,
-	fecha_deteccion timestamp default current_timestamp
-);
-
-create table reporte_proveedores(
-	id_proveedor int,
-	proveedor varchar(100),
-	total_ventas decimal(12,2),
-	unidades_vendidas int,
-	pediddos_participados int,
-	fecha_reporte date
-);
 -- ==========================
 -- ÍNDICES
 -- ==========================
@@ -683,7 +731,25 @@ ORDER BY repetidas DESC
 
 -- 14. Comparar las ventas de un producto antes y despues de una campaña de descuento
 
--- ???? Nose aun a que se refiere con campaña de descuento
+SELECT
+	    'Antes' AS periodo,
+	    SUM(dv.cantidad) AS unidades_vendidas,
+	    SUM(dv.cantidad * dv.precio_unitario_congelado) AS total_vendido
+	FROM detalle_ventas dv
+	JOIN ventas v ON dv.id_venta = v.id_venta
+	WHERE dv.id_producto = 1
+	AND v.fecha_venta < '2025-03-01'   -- ingresar las fechas manuales dependiendo la temporada de camañan.. supongo xd
+	
+	UNION
+	
+	SELECT
+	    'Despues' AS periodo,
+	    SUM(dv.cantidad) AS unidades_vendidas,
+	    SUM(dv.cantidad * dv.precio_unitario_congelado) AS total_vendido
+	FROM detalle_ventas dv
+	JOIN ventas v ON dv.id_venta = v.id_venta
+	WHERE dv.id_producto = 1
+	AND v.fecha_venta >= '2025-03-01';
 
 -- 15. Retencion de cliente mes a mes desde su primera compra
 
@@ -2108,6 +2174,7 @@ BEGIN
     INSERT INTO backup_ventas SELECT * FROM ventas;
 END;
 
+-- 14. evt_clear_abandoned_carts_daily: Vacía los carritos de compra abandonados hace más de 72 horas.
 
 	CREATE TABLE carritos (
     id_carrito INT AUTO_INCREMENT PRIMARY KEY,
@@ -2427,6 +2494,154 @@ CREATE PROCEDURE sp_ProcesarDevolucion(
 	END;
 	
 	CALL sp_ObtenerHistorialComprasCliente(1);
+
+    -- 6. sp_AjustarNivelStock: Permite ajustar manualmente el stock de un producto, registrando el motivo.
+delimiter //
+create procedure sp_AjustarNivelStock(in p_id_producto int, in p_nuevo_stock int, in p_motivo varchar(255))
+begin 
+	
+	declare v_stock_old int;
+	
+	if exists(
+		select 1
+		from productos 
+		where id_producto = p_id_producto
+	) then
+		
+		select stock 
+		into v_stock_old 
+		from productos 
+		where id_producto = p_id_producto;	
+	
+		if p_nuevo_stock < 0 then
+			signal sqlstate '45000'
+			set message_text = 'El stock no puede ser negativo';
+		else 
+			update productos 
+			set stock = p_nuevo_stock
+			where id_producto = p_id_producto;
+
+			insert into actualizacion_stock_m (id_producto, stock_anterior, nuevo_stock, motivo) values
+			(p_id_producto, v_stock_old, p_nuevo_stock, p_motivo);
+		
+		end if;
+	else 
+		signal sqlstate '45000'
+		set message_text = 'Producto no encontrado';
+	end if;
+end //
+delimiter ;
+
+call sp_AjustarNivelStock(2, 14, 'Mal calculo al momento de recibir el producto');
+
+-- 7. sp_EliminarClienteDeFormaSegura: Anonimiza los datos de un cliente en lugar de borrarlos, para mantener la integridad referencial.
+delimiter //
+create procedure sp_EliminarClienteDeFormaSegura(in p_id_cliente int)
+begin 
+	if exists(
+		select 1
+		from clientes 
+		where id_cliente = p_id_cliente
+	) then
+		update clientes
+			set nombre = 'ANONIMO',
+				apellido = 'ANONIMO',
+				email = concat('anonimo_', id_cliente, '@deleted.com'),
+				direccion_envio = null,
+				contrasena = sha2(uuid(),256)
+		where id_cliente = p_id_cliente;
+	else 
+		signal sqlstate '45000'
+		set message_text = 'Cliente no encontrado';
+	end if;
+end // 
+delimiter ;
+
+call sp_EliminarClienteDeFormaSegura(16);
+
+-- 8. sp_AplicarDescuentoPorCategoria: Aplica un descuento a todos los productos de una categoría específica.
+delimiter //
+create procedure sp_AplicarDescuentoPorCategoria(in p_categoria varchar(100), in p_descuento decimal(5,2))
+begin 
+	declare v_id_categoria int;
+	select id_categoria
+	into v_id_categoria
+	from categorias
+	where nombre = p_categoria;
+
+	if v_id_categoria is not null then
+
+		update productos 
+		set precio = precio * (1 - p_descuento / 100)
+		where categoria = v_id_categoria;
+	else 
+		signal sqlstate '45000'
+		set message_text = 'Categoria no encontrada';
+	end if;	
+end // 
+delimiter ;
+
+call sp_AplicarDescuentoPorCategoria('Jazz', 20);
+
+-- 9. sp_GenerarReporteMensualVentas: Genera un reporte completo de ventas para un mes y año dados.
+delimiter //
+create procedure sp_GenerarReporteMensualVentas(in p_mes int, in p_anio int)
+begin 
+	select 
+		count(*) as cantidad_pedidos,
+		sum(total) as ventas_totales,
+		avg(total) as promedio_por_pedido,
+		count(distinct id_cliente) as clientes_unicos
+	from ventas 
+	where month(fecha_venta) = p_mes
+		and year(fecha_venta) = p_anio
+		and estado = 'entregado';	
+end //
+delimiter ;
+
+call sp_GenerarReporteMensualVentas(4, 2025);
+
+-- 10. sp_CambiarEstadoPedido: Cambia el estado de un pedido (ej. 'Procesando' a 'Enviado') y notifica a otros sistemas.
+
+delimiter //
+create procedure sp_CambiarEstadoPedido(in p_id_venta int, in p_nuevo_estado varchar(100))
+begin 
+	declare v_estado_actual varchar(100);
+
+	if p_nuevo_estado not in ( 'pendiente_pago', 'procesando', 'enviado', 'entregado', 'cancelado') then
+			signal sqlstate '45000'
+			set message_text = 'Estado no valido';
+	else
+		if exists (
+			select 1 
+			from ventas
+			where id_venta = p_id_venta
+		) then 
+			select estado 
+			into v_estado_actual 
+			from ventas
+			where id_venta = p_id_venta;
+			
+			if v_estado_actual = p_nuevo_estado then
+				signal sqlstate '45000'
+				set message_text = 'Estado Actualizado';
+			else
+				update ventas 
+				set estado = p_nuevo_estado
+				where id_venta = p_id_venta;
+	
+				insert into notificaciones_pedidos (id_venta, estado_anterior, nuevo_estado) values
+				(p_id_venta, v_estado_actual, p_nuevo_estado);
+			end if;
+		else 
+			signal sqlstate '45000'
+			set message_text = 'Venta no encontrada';
+		end if;	
+	end if;
+end //
+delimiter ;
+
+call sp_CambiarEstadoPedido(3, 'enviado');
 	
 -- 11. Registra un nuevo cliente validando que el email no exista.
 	
@@ -2541,3 +2756,188 @@ BEGIN
 END;
 
 CALL sp_BuscarProductos('Pink', NULL, 100000, 200000);
+
+-- 16. sp_ObtenerDashboardAdmin: Devuelve un conjunto de KPIs para un panel de administración (ventas de hoy, nuevos clientes, etc.).
+delimiter //
+create procedure sp_ObtenerDashboardAdmin()
+begin
+	-- pedidos hoy
+	select
+		(
+			select 
+				count(*) 
+			from ventas
+			where date(fecha_venta) = curdate() 
+			 and estado = 'entregado'
+		) as pedido_hoy,
+		
+		-- nuevos clientes
+		(	
+			select
+				count(*)
+			from clientes 
+			where date(fecha_registro) = curdate() 
+		) as nuevos_clientes,
+			
+		-- productos activos
+		(
+			select 
+				count(*) 
+			from productos 
+			where activo = true
+		) as productos_activos,
+		
+		-- bajo stock
+		(
+			select 
+				count(*) 
+			from productos 
+			where stock < 8
+		) as stock_bajo,
+		
+		-- ventas hoy
+		(
+			select 
+				coalesce(sum(total),0)
+			from ventas 
+			where date(fecha_venta) = curdate() 
+			 and estado = 'entregado'
+		) as ventas_hoy;
+end //
+delimiter ;
+CALL sp_ObtenerDashboardAdmin();
+
+-- 17. sp_ProcesarPago: Simula el procesamiento de un pago para una venta, actualizando su estado a "Pagado".
+
+delimiter //
+create procedure sp_procesarpago(in p_id_venta int)
+begin
+	declare v_estado varchar(50);
+
+	if exists (
+		select 1
+		from ventas
+		where id_venta = p_id_venta
+	) then
+
+		select estado
+		into v_estado
+		from ventas
+		where id_venta = p_id_venta;
+
+		if v_estado = 'cancelado' then
+			signal sqlstate '45000'
+			set message_text = 'no se puede procesar un pago para una venta cancelada';
+
+		elseif v_estado = 'enviado' then
+			signal sqlstate '45000'
+			set message_text = 'la venta ya fue pagada';
+
+		else
+			update ventas
+			set estado = 'enviado'
+			where id_venta = p_id_venta;
+
+		end if;
+
+	else
+		signal sqlstate '45000'
+		set message_text = 'venta no encontrada';
+
+	end if;
+
+end //
+
+delimiter ;
+
+call sp_procesarpago(10);
+
+-- 18. sp_AñadirReseñaProducto: Permite a un cliente añadir una reseña y calificación a un producto que ha comprado.
+
+delimiter //
+create procedure sp_añadirreseñaproducto(in p_id_producto int, in p_id_cliente int,	in p_calificacion int, in p_comentario varchar(255))
+begin
+
+	if exists (
+		select 1
+		from ventas v
+		join detalle_ventas dv on v.id_venta = dv.id_venta
+		where v.id_cliente = p_id_cliente
+		  and dv.id_producto = p_id_producto
+		  and v.estado = 'entregado'
+	) then
+
+		insert into resenas_productos (
+			id_producto,
+			id_cliente,
+			calificacion,
+			comentario
+		)
+		values (
+			p_id_producto,
+			p_id_cliente,
+			p_calificacion,
+			p_comentario
+		);
+
+	else
+		signal sqlstate '45000'
+		set message_text = 'el cliente no ha comprado este producto';
+
+	end if;
+
+end //
+
+delimiter ;
+
+
+call sp_añadirreseñaproducto(1, 1, 5, 'excelente producto, lo recomiendo');
+
+-- 19. sp_ObtenerProductosRelacionados: Devuelve una lista de productos relacionados a uno dado, basándose en compras de otros clientes.
+delimiter //
+create procedure sp_obtenerproductosrelacionados(in p_id_producto int)
+begin
+	select 
+		p.id_producto,
+		p.nombre,
+		count(*) as frecuencia
+	from detalle_ventas dv1
+	join ventas v1 on dv1.id_venta = v1.id_venta
+	join detalle_ventas dv2 on v1.id_venta = dv2.id_venta
+	join productos p on dv2.id_producto = p.id_producto
+	where dv1.id_producto = p_id_producto
+	  and dv2.id_producto <> p_id_producto
+	group by p.id_producto, p.nombre
+	order by frecuencia desc;
+
+end //
+
+delimiter ;
+
+call sp_obtenerproductosrelacionados(1);
+
+-- 20. sp_MoverProductosEntreCategorias: Mueve uno o más productos de una categoría a otra de forma segura.
+delimiter //
+create procedure sp_moverproductoscategorias(in p_categoria_origen int, in p_categoria_destino int)
+begin
+	if exists (
+		select 1 from categorias where id_categoria = p_categoria_origen
+	) and exists (
+		select 1 from categorias where id_categoria = p_categoria_destino
+	) then
+
+		update productos
+		set categoria = p_categoria_destino
+		where categoria = p_categoria_origen;
+
+	else
+		signal sqlstate '45000'
+		set message_text = 'categoria origen o destino no existe';
+
+	end if;
+
+end //
+
+delimiter ;
+
+call sp_moverproductoscategorias(1, 3);
