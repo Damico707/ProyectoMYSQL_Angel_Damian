@@ -1596,7 +1596,7 @@ VALUES
 -- 3.  Decrementa el stock después de una venta.
 
 	CREATE TRIGGER trg_update_stock_after_insert_venta
-	AFTER INSERT INTO detalle_ventas
+	AFTER INSERT ON detalle_ventas
 	FOR EACH ROW
 	BEGIN
 	    UPDATE productos
@@ -1644,9 +1644,6 @@ VALUES
 
  -- 6. trg_update_total_gastado_cliente: Actualiza un campo total_gastado en la tabla clientes después de cada compra.
 
-alter table clientes 
-add total_gastado decimal(10,2);
-
 delimiter //
 create trigger trg_update_total_gastado_cliente
 after insert 
@@ -1662,9 +1659,6 @@ end //
 delimiter
 
 -- 7. trg_set_fecha_modificacion_producto: Actualiza automáticamente la fecha de última modificación de un producto.
-
-alter table clientes 
-add total_gastado decimal(10,2);
 
 delimiter //
 create trigger trg_set_fecha_modificacion_producto
@@ -1840,7 +1834,7 @@ add foreign key (cliente_referido) references clientes(id_cliente);
 
 delimiter //
 create trigger trg_prevent_self_referral
-before insert 
+after insert 
 on clientes 
 for each row
 begin
@@ -2165,9 +2159,9 @@ CREATE EVENT evt_backup_critical_tables_daily
 ON SCHEDULE EVERY 1 DAY
 DO
 BEGIN
-    DELETE FROM backup_clientes;
-    DELETE FROM backup_productos;
-    DELETE FROM backup_ventas;
+    TRUNCATE TABLE backup_clientes;
+    TRUNCATE TABLE backup_productos;
+    TRUNCATE TABLE backup_ventas;
 
     INSERT INTO backup_clientes SELECT * FROM clientes;
     INSERT INTO backup_productos SELECT * FROM productos;
@@ -2273,7 +2267,7 @@ begin
 	group by v.id_cliente
 	having count(*) >= 3;
 end // 
-delimiter
+delimiter ;
 
 -- 19. evt_generate_supplier_performance_report_monthly: Crea un reporte mensual sobre el rendimiento de los proveedores.
 delimiter //
@@ -2295,7 +2289,7 @@ begin
 		on pr.id_producto = dv.id_producto
 	join ventas v
 		on dv.id_venta = v.id_venta
-	where v.estado = 'estregado'
+	where v.estado = 'entregado'
 	group by p.id_proveedor, p.nombre;
 end //
 delimiter ;
